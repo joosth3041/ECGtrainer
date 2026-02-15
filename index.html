@@ -3059,6 +3059,10 @@ a:hover { color: var(--primary-hover); }
                     <span class="stat-label">📊 Nauwkeurigheid</span>
                     <span class="stat-value" id="sidebarAccuracy">0%</span>
                 </div>
+                <div class="stat-row">
+                    <span class="stat-label">👤 Profiel</span>
+                    <span class="stat-value" id="sidebarProfile">Standaard</span>
+                </div>
             </div>
         </aside>
 
@@ -3099,6 +3103,10 @@ a:hover { color: var(--primary-hover); }
     // ==================== STATE MANAGEMENT ====================
     const AppState = {
         currentSection: 'dashboard',
+        profile: {
+            id: 'default',
+            name: 'Standaard'
+        },
         user: {
             streak: 0,
             xp: 0,
@@ -3168,64 +3176,261 @@ a:hover { color: var(--primary-hover); }
         }
     };
 
+    const StateFactory = {
+        userTemplate: null,
+        settingsTemplate: null,
+        learningPathTemplate: null,
+
+        clone(value) {
+            return JSON.parse(JSON.stringify(value));
+        },
+
+        createUser() {
+            return this.clone(this.userTemplate);
+        },
+
+        createSettings() {
+            return this.clone(this.settingsTemplate);
+        },
+
+        createLearningPath() {
+            return this.clone(this.learningPathTemplate);
+        }
+    };
+
+    StateFactory.userTemplate = StateFactory.clone(AppState.user);
+    StateFactory.settingsTemplate = StateFactory.clone(AppState.settings);
+    StateFactory.learningPathTemplate = StateFactory.clone(AppState.learningPath);
+
     // ==================== LOCAL STORAGE ====================
     const Storage = {
-        KEY: 'ecg_trainer_v2_data',
-        
+        KEY: 'ecg_trainer_v2_profiles',
+        LEGACY_KEY: 'ecg_trainer_v2_data',
+        ACTIVE_PROFILE_KEY: 'ecg_trainer_v2_active_profile',
+
+        createDefaultProfile(name = 'Standaard') {
+            return {
+                name,
+                user: StateFactory.createUser(),
+                settings: StateFactory.createSettings(),
+                learningPath: StateFactory.createLearningPath(),
+                createdAt: new Date().toISOString(),
+                savedAt: new Date().toISOString()
+            };
+        },
+
+        createContainer() {
+            return {
+                version: 1,
+                profiles: {
+                    default: this.createDefaultProfile('Standaard')
+                },
+                updatedAt: new Date().toISOString()
+            };
+        },
+
+        getContainer() {
+            try {
+                const raw = localStorage.getItem(this.KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && parsed.profiles && Object.keys(parsed.profiles).length > 0) {
+                        return parsed;
+                    }
+                }
+            } catch (e) {
+                console.warn('Profielcontainer kon niet worden gelezen, fallback naar nieuw:', e);
+            }
+
+            const migrated = this.migrateLegacyData();
+            this.saveContainer(migrated);
+            return migrated;
+        },
+
+        saveContainer(container) {
+            container.updatedAt = new Date().toISOString();
+            localStorage.setItem(this.KEY, JSON.stringify(container));
+        },
+
+        migrateLegacyData() {
+            const container = this.createContainer();
+
+            try {
+                const legacyRaw = localStorage.getItem(this.LEGACY_KEY);
+                if (!legacyRaw) return container;
+
+                const legacy = JSON.parse(legacyRaw);
+                const baseProfile = container.profiles.default;
+                if (legacy.user) baseProfile.user = { ...baseProfile.user, ...legacy.user };
+                if (legacy.settings) baseProfile.settings = { ...baseProfile.settings, ...legacy.settings };
+                if (legacy.learningPath) {
+                    baseProfile.learningPath = {
+                        ...baseProfile.learningPath,
+                        ...legacy.learningPath,
+                        dailyRoundState: {
+                            ...baseProfile.learningPath.dailyRoundState,
+                            ...(legacy.learningPath.dailyRoundState || {})
+                        },
+                        checklistTraining: {
+                            ...baseProfile.learningPath.checklistTraining,
+                            ...(legacy.learningPath.checklistTraining || {})
+                        }
+                    };
+                }
+                baseProfile.savedAt = legacy.savedAt || new Date().toISOString();
+            } catch (e) {
+                console.warn('Legacy migratie mislukt, start met lege profielen:', e);
+            }
+
+            return container;
+        },
+
+        getActiveProfileId(container) {
+            const selected = localStorage.getItem(this.ACTIVE_PROFILE_KEY) || 'default';
+            if (container.profiles[selected]) return selected;
+            const fallback = Object.keys(container.profiles)[0] || 'default';
+            localStorage.setItem(this.ACTIVE_PROFILE_KEY, fallback);
+            return fallback;
+        },
+
+        setActiveProfile(profileId) {
+            const container = this.getContainer();
+            if (!container.profiles[profileId]) return false;
+            localStorage.setItem(this.ACTIVE_PROFILE_KEY, profileId);
+            return true;
+        },
+
+        listProfiles() {
+            const container = this.getContainer();
+            return Object.entries(container.profiles).map(([id, profile]) => ({
+                id,
+                name: profile.name || id
+            })).sort((a, b) => a.name.localeCompare(b.name, 'nl-NL'));
+        },
+
+        createProfile(name) {
+            const safeName = (name || '').trim();
+            if (!safeName) throw new Error('Profielnaam is verplicht.');
+
+            const container = this.getContainer();
+            const exists = Object.values(container.profiles).some(p => (p.name || '').toLowerCase() === safeName.toLowerCase());
+            if (exists) throw new Error('Er bestaat al een profiel met deze naam.');
+
+            const profileId = `profile_${Date.now()}`;
+            container.profiles[profileId] = this.createDefaultProfile(safeName);
+            this.saveContainer(container);
+            localStorage.setItem(this.ACTIVE_PROFILE_KEY, profileId);
+            return profileId;
+        },
+
+        renameActiveProfile(newName) {
+            const safeName = (newName || '').trim();
+            if (!safeName) throw new Error('Profielnaam is verplicht.');
+
+            const container = this.getContainer();
+            const activeId = this.getActiveProfileId(container);
+            if (!container.profiles[activeId]) throw new Error('Actief profiel niet gevonden.');
+
+            const duplicate = Object.entries(container.profiles).some(([id, p]) => id !== activeId && (p.name || '').toLowerCase() === safeName.toLowerCase());
+            if (duplicate) throw new Error('Er bestaat al een profiel met deze naam.');
+
+            container.profiles[activeId].name = safeName;
+            this.saveContainer(container);
+            AppState.profile.name = safeName;
+        },
+
+        deleteProfile(profileId) {
+            const container = this.getContainer();
+            if (!container.profiles[profileId]) throw new Error('Profiel niet gevonden.');
+            const allIds = Object.keys(container.profiles);
+            if (allIds.length <= 1) throw new Error('Je moet minimaal 1 profiel behouden.');
+
+            delete container.profiles[profileId];
+            this.saveContainer(container);
+
+            const currentActive = localStorage.getItem(this.ACTIVE_PROFILE_KEY);
+            if (currentActive === profileId) {
+                const nextId = Object.keys(container.profiles)[0];
+                localStorage.setItem(this.ACTIVE_PROFILE_KEY, nextId);
+            }
+        },
+
+        resetActiveProfile() {
+            const container = this.getContainer();
+            const activeId = this.getActiveProfileId(container);
+            const profileName = container.profiles[activeId]?.name || 'Standaard';
+            container.profiles[activeId] = this.createDefaultProfile(profileName);
+            this.saveContainer(container);
+        },
+
+        applyProfileToState(profileId, profileData) {
+            AppState.profile.id = profileId;
+            AppState.profile.name = profileData.name || 'Standaard';
+
+            AppState.user = { ...StateFactory.createUser(), ...(profileData.user || {}) };
+            AppState.settings = { ...StateFactory.createSettings(), ...(profileData.settings || {}) };
+
+            const baseLearningPath = StateFactory.createLearningPath();
+            AppState.learningPath = {
+                ...baseLearningPath,
+                ...(profileData.learningPath || {}),
+                dailyRoundState: {
+                    ...baseLearningPath.dailyRoundState,
+                    ...(profileData.learningPath?.dailyRoundState || {})
+                },
+                checklistTraining: {
+                    ...baseLearningPath.checklistTraining,
+                    ...(profileData.learningPath?.checklistTraining || {})
+                }
+            };
+        },
+
         save() {
             try {
-                const dataToSave = {
+                const container = this.getContainer();
+                const activeId = this.getActiveProfileId(container);
+                const existing = container.profiles[activeId] || this.createDefaultProfile('Standaard');
+
+                container.profiles[activeId] = {
+                    ...existing,
+                    name: AppState.profile.name || existing.name || 'Standaard',
                     user: AppState.user,
                     settings: AppState.settings,
                     learningPath: AppState.learningPath,
                     savedAt: new Date().toISOString()
                 };
-                localStorage.setItem(this.KEY, JSON.stringify(dataToSave));
+
+                this.saveContainer(container);
             } catch (e) {
                 console.error('Opslaan mislukt:', e);
             }
         },
-        
+
         load() {
             try {
-                const saved = localStorage.getItem(this.KEY);
-                if (saved) {
-                    const data = JSON.parse(saved);
-                    if (data.user) Object.assign(AppState.user, data.user);
-                    if (data.settings) Object.assign(AppState.settings, data.settings);
-                    if (data.learningPath) {
-                        AppState.learningPath = {
-                            ...AppState.learningPath,
-                            ...data.learningPath,
-                            dailyRoundState: {
-                                ...AppState.learningPath.dailyRoundState,
-                                ...(data.learningPath.dailyRoundState || {})
-                            },
-                            checklistTraining: {
-                                ...AppState.learningPath.checklistTraining,
-                                ...(data.learningPath.checklistTraining || {})
-                            }
-                        };
-                    }
-                    
-                    // Check streak continuity
-                    if (data.savedAt) {
-                        const lastDate = new Date(data.savedAt).toDateString();
-                        const today = new Date().toDateString();
-                        const yesterday = new Date(Date.now() - 86400000).toDateString();
-                        
-                        if (lastDate !== today && lastDate !== yesterday) {
-                            AppState.user.streak = 0;
-                        }
+                const container = this.getContainer();
+                const activeId = this.getActiveProfileId(container);
+                const profileData = container.profiles[activeId] || this.createDefaultProfile('Standaard');
+
+                this.applyProfileToState(activeId, profileData);
+
+                // Check streak continuity per actief profiel
+                if (profileData.savedAt) {
+                    const lastDate = new Date(profileData.savedAt).toDateString();
+                    const today = new Date().toDateString();
+                    const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+                    if (lastDate !== today && lastDate !== yesterday) {
+                        AppState.user.streak = 0;
                     }
                 }
             } catch (e) {
                 console.error('Laden mislukt:', e);
             }
         },
-        
+
         clear() {
-            localStorage.removeItem(this.KEY);
+            this.resetActiveProfile();
             location.reload();
         }
     };
@@ -8199,10 +8404,12 @@ a:hover { color: var(--primary-hover); }
             const streakEl = document.getElementById('sidebarStreak');
             const xpEl = document.getElementById('sidebarXP');
             const accEl = document.getElementById('sidebarAccuracy');
+            const profileEl = document.getElementById('sidebarProfile');
             
             if (streakEl) streakEl.textContent = user.streak;
             if (xpEl) xpEl.textContent = user.xp;
             if (accEl) accEl.textContent = `${accuracy}%`;
+            if (profileEl) profileEl.textContent = AppState.profile?.name || 'Standaard';
         },
 
         // ========== NAVIGATION ==========
@@ -9290,8 +9497,99 @@ a:hover { color: var(--primary-hover); }
         },
 
         resetProgress() {
-            if (confirm('Weet je zeker dat je alle voortgang wilt wissen? Dit kan niet ongedaan worden gemaakt.')) {
+            if (confirm(`Weet je zeker dat je alle voortgang van profiel "${AppState.profile?.name || 'Standaard'}" wilt wissen? Dit kan niet ongedaan worden gemaakt.`)) {
                 Storage.clear();
+            }
+        },
+
+        createProfile() {
+            const name = prompt('Naam voor nieuw profiel:');
+            if (!name) return;
+            try {
+                Storage.createProfile(name);
+                location.reload();
+            } catch (error) {
+                this.showModal('❌ Profiel aanmaken mislukt', `
+                    <div class="info-box danger">
+                        <div class="info-box-icon">⚠️</div>
+                        <div class="info-box-content">
+                            <p>${error.message}</p>
+                        </div>
+                    </div>
+                `);
+            }
+        },
+
+        switchProfile() {
+            const profiles = Storage.listProfiles();
+            if (!profiles.length) return;
+
+            const list = profiles
+                .map((p, i) => `${i + 1}. ${p.name}${p.id === AppState.profile.id ? ' (actief)' : ''}`)
+                .join('\n');
+
+            const input = prompt(`Kies profielnummer:\n\n${list}`, '1');
+            if (!input) return;
+
+            const index = parseInt(input, 10) - 1;
+            if (isNaN(index) || index < 0 || index >= profiles.length) {
+                this.showModal('⚠️ Ongeldige keuze', `
+                    <div class="info-box warning">
+                        <div class="info-box-icon">ℹ️</div>
+                        <div class="info-box-content">
+                            <p>Kies een geldig profielnummer.</p>
+                        </div>
+                    </div>
+                `);
+                return;
+            }
+
+            const target = profiles[index];
+            if (target.id === AppState.profile.id) return;
+            Storage.setActiveProfile(target.id);
+            location.reload();
+        },
+
+        renameCurrentProfile() {
+            const currentName = AppState.profile?.name || 'Standaard';
+            const newName = prompt('Nieuwe profielnaam:', currentName);
+            if (!newName || newName.trim() === currentName) return;
+
+            try {
+                Storage.renameActiveProfile(newName);
+                Storage.save();
+                this.updateSidebarStats();
+                if (AppState.currentSection === 'settings') {
+                    Sections.renderSettings(Utils.$('#contentArea'));
+                }
+            } catch (error) {
+                this.showModal('❌ Hernoemen mislukt', `
+                    <div class="info-box danger">
+                        <div class="info-box-icon">⚠️</div>
+                        <div class="info-box-content">
+                            <p>${error.message}</p>
+                        </div>
+                    </div>
+                `);
+            }
+        },
+
+        deleteCurrentProfile() {
+            const currentName = AppState.profile?.name || 'Standaard';
+            if (!confirm(`Weet je zeker dat je profiel "${currentName}" wilt verwijderen?`)) return;
+
+            try {
+                Storage.deleteProfile(AppState.profile.id);
+                location.reload();
+            } catch (error) {
+                this.showModal('❌ Verwijderen mislukt', `
+                    <div class="info-box danger">
+                        <div class="info-box-icon">⚠️</div>
+                        <div class="info-box-content">
+                            <p>${error.message}</p>
+                        </div>
+                    </div>
+                `);
             }
         }
     };
@@ -10349,6 +10647,47 @@ a:hover { color: var(--primary-hover); }
                         </div>
                     </div>
 
+                    <!-- Profile Management -->
+                    <h4 style="margin-bottom: 1rem;">👤 Profielen</h4>
+                    <div class="settings-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-name">Actief profiel</div>
+                                <div class="setting-desc">Huidig profiel: <strong>${AppState.profile?.name || 'Standaard'}</strong></div>
+                            </div>
+                            <button class="btn btn-outline btn-sm" onclick="ECGApp.switchProfile()">
+                                🔁 Wisselen
+                            </button>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-name">Nieuw profiel</div>
+                                <div class="setting-desc">Maak een extra lokaal profiel met eigen voortgang</div>
+                            </div>
+                            <button class="btn btn-outline btn-sm" onclick="ECGApp.createProfile()">
+                                ➕ Aanmaken
+                            </button>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-name">Profiel hernoemen</div>
+                                <div class="setting-desc">Pas de naam van het actieve profiel aan</div>
+                            </div>
+                            <button class="btn btn-outline btn-sm" onclick="ECGApp.renameCurrentProfile()">
+                                ✏️ Hernoemen
+                            </button>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-name">Profiel verwijderen</div>
+                                <div class="setting-desc">Verwijder alleen het actieve profiel (minimaal 1 profiel blijft bestaan)</div>
+                            </div>
+                            <button class="btn btn-danger btn-sm" onclick="ECGApp.deleteCurrentProfile()">
+                                🗑️ Verwijderen
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Quiz Settings -->
                     <h4 style="margin-bottom: 1rem;">🎯 Quiz Instellingen</h4>
                     <div class="settings-group">
@@ -10410,7 +10749,7 @@ a:hover { color: var(--primary-hover); }
                         <div class="setting-item">
                             <div class="setting-info">
                                 <div class="setting-name">Exporteer Voortgang</div>
-                                <div class="setting-desc">Download je voortgang als JSON bestand</div>
+                                <div class="setting-desc">Download voortgang van het actieve profiel als JSON bestand</div>
                             </div>
                             <button class="btn btn-outline btn-sm" onclick="ECGApp.exportData()">
                                 📤 Exporteren
@@ -10419,7 +10758,7 @@ a:hover { color: var(--primary-hover); }
                         <div class="setting-item">
                             <div class="setting-info">
                                 <div class="setting-name">Importeer Voortgang</div>
-                                <div class="setting-desc">Herstel voortgang van een back-up</div>
+                                <div class="setting-desc">Herstel back-up in het actieve profiel</div>
                             </div>
                             <button class="btn btn-outline btn-sm" onclick="ECGApp.importData()">
                                 📥 Importeren
@@ -10428,7 +10767,7 @@ a:hover { color: var(--primary-hover); }
                         <div class="setting-item">
                             <div class="setting-info">
                                 <div class="setting-name">Reset Voortgang</div>
-                                <div class="setting-desc">Wis alle voortgang en begin opnieuw</div>
+                                <div class="setting-desc">Wis voortgang van het actieve profiel en begin opnieuw</div>
                             </div>
                             <button class="btn btn-danger btn-sm" onclick="ECGApp.resetProgress()">
                                 🗑️ Reset
@@ -10487,6 +10826,7 @@ a:hover { color: var(--primary-hover); }
         const data = {
             version: '2.0',
             exportDate: new Date().toISOString(),
+            profile: AppState.profile,
             user: AppState.user,
             settings: AppState.settings,
             learningPath: AppState.learningPath
@@ -10496,8 +10836,12 @@ a:hover { color: var(--primary-hover); }
         const url = URL.createObjectURL(blob);
         
         const a = document.createElement('a');
+        const safeProfileName = (AppState.profile?.name || 'profiel')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
         a.href = url;
-        a.download = `ecg-trainer-backup-${new Date().toISOString().split('T')[0]}.json`;
+        a.download = `ecg-trainer-${safeProfileName || 'profiel'}-backup-${new Date().toISOString().split('T')[0]}.json`;
         a.click();
         
         URL.revokeObjectURL(url);
@@ -10532,6 +10876,9 @@ a:hover { color: var(--primary-hover); }
                     }
                     
                     // Merge data
+                    if (data.profile?.name) {
+                        AppState.profile.name = data.profile.name;
+                    }
                     AppState.user = { ...AppState.user, ...data.user };
                     if (data.settings) {
                         AppState.settings = data.settings;
