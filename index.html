@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IC ECG Trainer Pro v2.0</title>
+    <title>IC ECG Trainer Pro v2.2</title>
     <style>
         /* ==================== RESET & BASE ==================== */
         * {
@@ -208,6 +208,12 @@
             z-index: 50;
         }
 
+        .top-bar-heading {
+            display: flex;
+            flex-direction: column;
+            gap: 0.1rem;
+        }
+
         .top-bar-title {
             font-size: 1.15rem;
             font-weight: 600;
@@ -216,12 +222,26 @@
             gap: 0.5rem;
         }
 
+        .page-breadcrumb {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
         .top-bar-actions {
             display: flex;
             gap: 0.75rem;
             align-items: center;
         }
 
+        .context-help-card {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(59, 130, 246, 0.08));
+            border: 1px solid rgba(59, 130, 246, 0.35);
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+        }
         .content-area {
             flex: 1;
             padding: 1.5rem;
@@ -358,6 +378,7 @@
         .badge-easy { background: rgba(34, 197, 94, 0.15); color: var(--success); }
         .badge-medium { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
         .badge-hard { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+        .badge-warning { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
         .badge-critical { background: var(--danger); color: white; }
         .badge-info { background: rgba(59, 130, 246, 0.15); color: var(--primary); }
         .badge-success { background: rgba(34, 197, 94, 0.15); color: var(--success); }
@@ -2982,7 +3003,7 @@ a:hover { color: var(--primary-hover); }
                     <div class="logo-icon">🫀</div>
                     <div>
                         <div class="logo-text">ECG Trainer Pro</div>
-                        <div class="logo-subtitle">Intensive Care Editie v2.0</div>
+                        <div class="logo-subtitle">Intensive Care Editie v2.2</div>
                     </div>
                 </div>
             </div>
@@ -3097,7 +3118,10 @@ a:hover { color: var(--primary-hover); }
         <!-- MAIN CONTENT -->
         <main class="main-content">
             <header class="top-bar">
-                <h1 class="top-bar-title" id="pageTitle">📊 Dashboard</h1>
+                <div class="top-bar-heading">
+                    <h1 class="top-bar-title" id="pageTitle">📊 Dashboard</h1>
+                    <div class="page-breadcrumb" id="pageBreadcrumb">Dashboard</div>
+                </div>
                 <div class="top-bar-actions">
                     <button class="btn btn-primary btn-sm" onclick="ECGApp.startQuickQuiz()">
                         🎯 Snelle Quiz
@@ -3135,6 +3159,18 @@ a:hover { color: var(--primary-hover); }
             id: 'default',
             name: 'Standaard'
         },
+        ui: {
+            onboardingCompleted: false,
+            contextualHelp: true,
+            compactMode: false,
+            lastVisitedSection: 'dashboard'
+        },
+        quizQuality: {
+            repeatGuardWindow: 5,
+            diversityWindow: 10,
+            maxCategoryShare: 0.4,
+            minUniqueRatioTarget: 0.75
+        },
         user: {
             streak: 0,
             xp: 0,
@@ -3149,7 +3185,7 @@ a:hover { color: var(--primary-hover); }
         },
         quiz: {
             active: false,
-            mode: 'standard', // 'standard', 'timed', 'survival', 'clinical', 'exam', 'recovery', 'coach', 'sprint'
+            mode: 'standard', // 'standard', 'timed', 'survival', 'clinical', 'exam', 'recovery', 'coach', 'sprint', 'critical'
             difficulty: 'all', // 'easy', 'medium', 'hard', 'all'
             category: 'all',
             moduleId: null,
@@ -3165,13 +3201,26 @@ a:hover { color: var(--primary-hover); }
             selectedAnswer: null,
             showingFeedback: false,
             pendingConfidence: null,
-            pendingAnswerIndex: null
+            pendingAnswerIndex: null,
+            currentOptionIds: [],
+            currentAdaptiveProfile: null,
+            currentQuestionPayload: null,
+            questionType: 'recognition',
+            questionTypeMix: {
+                recognition: 0.5,
+                differential: 0.3,
+                first_action: 0.2
+            }
         },
         monitor: {
             currentRhythm: 'sinus_normal',
             speed: 25,
             amplitude: 1,
             heartRate: 72,
+            lead: 'II',
+            artifactLevel: 'none',
+            showIntervalsOverlay: false,
+            freezeFrame: false,
             isRunning: false,
             animationId: null
         },
@@ -3229,18 +3278,37 @@ a:hover { color: var(--primary-hover); }
             riskFlags: [],
             examWeakDomains: [],
             lastReviewDate: null
+        },
+        diagnostics: {
+            lastRunAt: null,
+            bindingIssues: [],
+            sectionIssues: [],
+            sourceCoverage: null,
+            variationMetrics: null,
+            monitorHealth: null
         }
     };
 
     const StateFactory = {
+        uiTemplate: null,
+        quizQualityTemplate: null,
         userTemplate: null,
         settingsTemplate: null,
         learningPathTemplate: null,
         coachStateTemplate: null,
         learningAnalyticsTemplate: null,
+        diagnosticsTemplate: null,
 
         clone(value) {
             return JSON.parse(JSON.stringify(value));
+        },
+
+        createUi() {
+            return this.clone(this.uiTemplate);
+        },
+
+        createQuizQuality() {
+            return this.clone(this.quizQualityTemplate);
         },
 
         createUser() {
@@ -3261,21 +3329,29 @@ a:hover { color: var(--primary-hover); }
 
         createLearningAnalytics() {
             return this.clone(this.learningAnalyticsTemplate);
+        },
+
+        createDiagnostics() {
+            return this.clone(this.diagnosticsTemplate);
         }
     };
 
+    StateFactory.uiTemplate = StateFactory.clone(AppState.ui);
+    StateFactory.quizQualityTemplate = StateFactory.clone(AppState.quizQuality);
     StateFactory.userTemplate = StateFactory.clone(AppState.user);
     StateFactory.settingsTemplate = StateFactory.clone(AppState.settings);
     StateFactory.learningPathTemplate = StateFactory.clone(AppState.learningPath);
     StateFactory.coachStateTemplate = StateFactory.clone(AppState.coachState);
     StateFactory.learningAnalyticsTemplate = StateFactory.clone(AppState.learningAnalytics);
+    StateFactory.diagnosticsTemplate = StateFactory.clone(AppState.diagnostics);
 
     // ==================== LOCAL STORAGE ====================
     const Storage = {
         KEY: 'ecg_trainer_v2_profiles',
+        BACKUP_KEY: 'ecg_trainer_v2_profiles_backup',
         LEGACY_KEY: 'ecg_trainer_v2_data',
         ACTIVE_PROFILE_KEY: 'ecg_trainer_v2_active_profile',
-        SCHEMA_VERSION: 2,
+        SCHEMA_VERSION: 4,
 
         createDefaultCoachState() {
             return StateFactory.createCoachState();
@@ -3285,14 +3361,21 @@ a:hover { color: var(--primary-hover); }
             return StateFactory.createLearningAnalytics();
         },
 
+        createDefaultDiagnostics() {
+            return StateFactory.createDiagnostics();
+        },
+
         createDefaultProfile(name = 'Standaard') {
             return {
                 name,
+                ui: StateFactory.createUi(),
+                quizQuality: StateFactory.createQuizQuality(),
                 user: StateFactory.createUser(),
                 settings: StateFactory.createSettings(),
                 learningPath: StateFactory.createLearningPath(),
                 coachState: this.createDefaultCoachState(),
                 learningAnalytics: this.createDefaultLearningAnalytics(),
+                diagnostics: this.createDefaultDiagnostics(),
                 createdAt: new Date().toISOString(),
                 savedAt: new Date().toISOString()
             };
@@ -3321,6 +3404,14 @@ a:hover { color: var(--primary-hover); }
                 normalized.profiles[id] = {
                     ...base,
                     ...(profile || {}),
+                    ui: {
+                        ...base.ui,
+                        ...(profile?.ui || {})
+                    },
+                    quizQuality: {
+                        ...base.quizQuality,
+                        ...(profile?.quizQuality || {})
+                    },
                     coachState: {
                         ...base.coachState,
                         ...(profile?.coachState || {}),
@@ -3332,6 +3423,10 @@ a:hover { color: var(--primary-hover); }
                     learningAnalytics: {
                         ...base.learningAnalytics,
                         ...(profile?.learningAnalytics || {})
+                    },
+                    diagnostics: {
+                        ...base.diagnostics,
+                        ...(profile?.diagnostics || {})
                     }
                 };
             });
@@ -3360,7 +3455,23 @@ a:hover { color: var(--primary-hover); }
                     }
                 }
             } catch (e) {
-                console.warn('Profielcontainer kon niet worden gelezen, fallback naar nieuw:', e);
+                console.warn('Profielcontainer kon niet worden gelezen, poging backup:', e);
+                try {
+                    const backupRaw = localStorage.getItem(this.BACKUP_KEY);
+                    if (backupRaw) {
+                        const parsedBackup = JSON.parse(backupRaw);
+                        if (parsedBackup && parsedBackup.profiles && Object.keys(parsedBackup.profiles).length > 0) {
+                            const normalizedBackup = this.normalizeContainer(parsedBackup);
+                            if (normalizedBackup._changed) {
+                                delete normalizedBackup._changed;
+                            }
+                            this.saveContainer(normalizedBackup);
+                            return normalizedBackup;
+                        }
+                    }
+                } catch (backupErr) {
+                    console.warn('Backup container kon ook niet worden gelezen:', backupErr);
+                }
             }
 
             const migrated = this.migrateLegacyData();
@@ -3370,7 +3481,9 @@ a:hover { color: var(--primary-hover); }
 
         saveContainer(container) {
             container.updatedAt = new Date().toISOString();
-            localStorage.setItem(this.KEY, JSON.stringify(container));
+            const serialized = JSON.stringify(container);
+            localStorage.setItem(this.KEY, serialized);
+            localStorage.setItem(this.BACKUP_KEY, serialized);
         },
 
         migrateLegacyData() {
@@ -3488,6 +3601,8 @@ a:hover { color: var(--primary-hover); }
             AppState.profile.id = profileId;
             AppState.profile.name = profileData.name || 'Standaard';
 
+            AppState.ui = { ...StateFactory.createUi(), ...(profileData.ui || {}) };
+            AppState.quizQuality = { ...StateFactory.createQuizQuality(), ...(profileData.quizQuality || {}) };
             AppState.user = { ...StateFactory.createUser(), ...(profileData.user || {}) };
             AppState.settings = { ...StateFactory.createSettings(), ...(profileData.settings || {}) };
 
@@ -3517,6 +3632,10 @@ a:hover { color: var(--primary-hover); }
                 ...this.createDefaultLearningAnalytics(),
                 ...(profileData.learningAnalytics || {})
             };
+            AppState.diagnostics = {
+                ...this.createDefaultDiagnostics(),
+                ...(profileData.diagnostics || {})
+            };
             AppState.coach = {
                 ...AppState.coach,
                 active: false,
@@ -3534,11 +3653,14 @@ a:hover { color: var(--primary-hover); }
                 container.profiles[activeId] = {
                     ...existing,
                     name: AppState.profile.name || existing.name || 'Standaard',
+                    ui: AppState.ui,
+                    quizQuality: AppState.quizQuality,
                     user: AppState.user,
                     settings: AppState.settings,
                     learningPath: AppState.learningPath,
                     coachState: AppState.coachState,
                     learningAnalytics: AppState.learningAnalytics,
+                    diagnostics: AppState.diagnostics,
                     savedAt: new Date().toISOString()
                 };
 
@@ -5689,24 +5811,38 @@ a:hover { color: var(--primary-hover); }
             );
         },
 
-        getDistractors(correctRhythm, count = 3) {
+        getDistractors(correctRhythm, count = 3, options = {}) {
             const correct = this.getRhythmById(correctRhythm);
             if (!correct) return [];
 
-            let pool = this.getAllRhythms().filter(r => r.id !== correctRhythm);
-            
-            // Prioriteer zelfde categorie en moeilijkheid
-            const sameCat = pool.filter(r => r.category === correct.category);
-            const sameDiff = pool.filter(r => r.difficulty === correct.difficulty);
-            
-            let prioritized = [...new Set([...sameCat, ...sameDiff])];
-            if (prioritized.length < count) {
-                prioritized = [...prioritized, ...pool.filter(r => !prioritized.includes(r))];
+            const exclude = new Set(Array.isArray(options.exclude) ? options.exclude : []);
+            exclude.add(correctRhythm);
+
+            const allRhythms = this.getAllRhythms();
+            const byId = new Map(allRhythms.map(r => [r.id, r]));
+            const picked = [];
+            const pickedIds = new Set();
+            const push = (rhythm) => {
+                if (!rhythm || exclude.has(rhythm.id) || pickedIds.has(rhythm.id)) return;
+                pickedIds.add(rhythm.id);
+                picked.push(rhythm);
+            };
+
+            // 1) Eerst klinische lookalikes voor sterkere differentiaaldiagnose.
+            if (Array.isArray(correct.lookalikes)) {
+                correct.lookalikes.forEach(item => push(byId.get(item.id)));
             }
 
-            // Shuffle en selecteer
-            const shuffled = prioritized.sort(() => Math.random() - 0.5);
-            return shuffled.slice(0, count);
+            // 2) Daarna dezelfde categorie.
+            Utils.shuffle(allRhythms.filter(r => r.category === correct.category)).forEach(push);
+
+            // 3) Daarnazelfde moeilijkheid.
+            Utils.shuffle(allRhythms.filter(r => r.difficulty === correct.difficulty)).forEach(push);
+
+            // 4) Tenslotte overige ritmes als opvulling.
+            Utils.shuffle(allRhythms).forEach(push);
+
+            return picked.slice(0, count);
         },
 
         getCategoryStats() {
@@ -5905,7 +6041,23 @@ a:hover { color: var(--primary-hover); }
             case_potassium_q1: 'ERC/ALS 2025: ECG-kenmerken van ernstige hyperkaliëmie.',
             case_potassium_q2: 'ERC/ALS 2025: calcium als eerste membraanstabilisatie bij hyperkaliëmie met ECG-afwijkingen.',
             case_af_rvr_q1: 'ESC AF 2024: ritmeherkenning AF op basis van onregelmatig-onregelmatig patroon.',
-            case_af_rvr_q2: 'ESC AF 2024: eerste keus rate-control bij stabiele AF (beta-blokker/non-DHP CCB contextafhankelijk).'
+            case_af_rvr_q2: 'ESC AF 2024: eerste keus rate-control bij stabiele AF (beta-blokker/non-DHP CCB contextafhankelijk).',
+            case_post_arrest_stemi_q1: 'ESC ACS 2023: STEMI-interpretatie en reperfusiebeleid in post-arrestcontext.',
+            case_post_arrest_stemi_q2: 'ESC ACS 2023: onmiddellijke reperfusiestrategie bij STEMI.',
+            case_sepsis_tachyarrhythmia_q1: 'ESC AF 2024: AF-diagnostiek in acute setting.',
+            case_sepsis_tachyarrhythmia_q2: 'ESC AF 2024: rate-control en hemodynamische context.',
+            case_intox_qt_q1: 'ESC VA 2022: lang QT en risico op polymorfe VT/torsades.',
+            case_intox_qt_q2: 'ESC VA 2022: acute aanpak van torsadesrisico en triggercorrectie.',
+            case_hypokalemia_qt_q1: 'ERC/ALS 2025: ECG-patronen en risicocontext bij elektrolytstoornissen.',
+            case_hypokalemia_qt_q2: 'ERC/ALS 2025: vroege correctie van reversibele metabole oorzaken.',
+            case_pacemaker_failure_q1: 'ESC Pacing 2021: herkenning van capture/sensing-problemen.',
+            case_pacemaker_failure_q2: 'ESC Pacing 2021: acute overbrugging en urgente device-evaluatie.',
+            case_dewinter_acs_q1: 'de Winter review: STEMI-equivalent patroon met hoge occlusiewaarde.',
+            case_dewinter_acs_q2: 'ESC ACS 2023: hoog-risico ischemiepatronen vereisen urgente coronairstrategie.',
+            case_unstable_brady_q1: 'ESC Pacing 2021: diagnostische kenmerken Mobitz II.',
+            case_unstable_brady_q2: 'ERC/ALS 2025: instabiele bradycardie met pacing-escalatie.',
+            case_wide_complex_tachy_q1: 'ESC VA 2022: brede-complex tachycardie als VT benaderen bij twijfel.',
+            case_wide_complex_tachy_q2: 'ESC VA 2022: acute VT-aanpak op basis van stabiliteit.'
         },
 
         getSource(sourceId) {
@@ -5972,10 +6124,21 @@ a:hover { color: var(--primary-hover); }
                 case_palpitations: ['esc_svt_2019', 'esc_svt_2019'],
                 case_resuscitation: ['erc_als_2025', 'erc_als_2025'],
                 case_potassium: ['erc_als_2025', 'erc_als_2025'],
-                case_af_rvr: ['esc_af_2024', 'esc_af_2024']
+                case_af_rvr: ['esc_af_2024', 'esc_af_2024'],
+                case_post_arrest_stemi: ['esc_acs_2023', 'esc_acs_2023'],
+                case_sepsis_tachyarrhythmia: ['esc_af_2024', 'esc_af_2024'],
+                case_intox_qt: ['esc_va_2022', 'esc_va_2022'],
+                case_hypokalemia_qt: ['erc_als_2025', 'erc_als_2025'],
+                case_pacemaker_failure: ['esc_pacing_2021', 'esc_pacing_2021'],
+                case_dewinter_acs: ['de_winter_2019', 'esc_acs_2023'],
+                case_unstable_brady: ['esc_pacing_2021', 'erc_als_2025'],
+                case_wide_complex_tachy: ['esc_va_2022', 'esc_va_2022']
             };
             ClinicalCases.getAllCases().forEach(caseData => {
                 caseData.questions.forEach((q, idx) => {
+                    if (!q.type || typeof q.type !== 'string') {
+                        q.type = idx === 0 ? 'recognition' : 'first_action';
+                    }
                     if (!q.sourceId || !MedicalSourceRegistry[q.sourceId]) {
                         q.sourceId = map[caseData.id]?.[idx] || 'erc_als_2025';
                     }
@@ -6096,6 +6259,28 @@ a:hover { color: var(--primary-hover); }
                 redFlags: ['Bij ischemische klachten: hoog-risico ACS met aanvullende criteria (o.a. Sgarbossa)']
             }
         };
+        const actionOverrides = {
+            vfib: {
+                firstAction: 'Start direct hoogwaardige CPR en defibrilleer zo snel mogelijk volgens fabrikantadviesenergie.',
+                firstActionWhy: 'VF is een schokbaar arrest-ritme; vertraging in defibrillatie verlaagt overlevingskans.',
+                escalationCue: 'Bij persisterend VF/pVT direct ALS-team en arrestprotocol volledig opschalen.'
+            },
+            asystole: {
+                firstAction: 'Start CPR, geef adrenaline volgens protocol en zoek direct reversibele oorzaken (4H/4T).',
+                firstActionWhy: 'Asystolie is niet-schokbaar; focus ligt op perfusie en oorzaakbehandeling.',
+                escalationCue: 'Bij aanhoudende asystolie ondanks optimale CPR: direct expertteam en oorzaakgerichte interventies.'
+            },
+            svt: {
+                firstAction: 'Begin met vagale manoeuvres bij stabiele regelmatige smalcomplex tachycardie.',
+                firstActionWhy: 'Niet-invasieve terminatie is eerste stap; adenosine volgt bij falen en geschikte context.',
+                escalationCue: 'Hemodynamische instabiliteit of diagnose-onzekerheid: cardioversiepad en senior consult.'
+            },
+            atrial_fibrillation: {
+                firstAction: 'Beoordeel hemodynamische stabiliteit en start rate-control bij stabiele AF volgens lokaal protocol.',
+                firstActionWhy: 'Bij stabiele AF staat ventriculaire rate-control vaak voorop; bij instabiliteit urgent cardioversiepad.',
+                escalationCue: 'Instabiele AF of pre-excitatie-verdacht patroon: direct opschalen en specialist betrekken.'
+            }
+        };
 
         MedicalContentAudit.ensureRhythmMetadata();
         ECGDatabase.getAllRhythms().forEach(rhythm => {
@@ -6116,12 +6301,33 @@ a:hover { color: var(--primary-hover); }
                     .map(r => ({ id: r.id, whyWrong: `${r.name} deelt kenmerken, maar vergelijk vooral ritmeregelmaat en QRS-morfologie.` }));
                 rhythm.lookalikes = similar;
             }
+            if (!Array.isArray(rhythm.differentialIds)) {
+                rhythm.differentialIds = rhythm.lookalikes.map(l => l.id).filter(Boolean);
+            }
+            if (!rhythm.firstAction || typeof rhythm.firstAction !== 'string') {
+                rhythm.firstAction = rhythm.urgency === 'critical' || rhythm.urgency === 'high'
+                    ? 'Start ABCDE, monitor en volg direct het lokale spoedprotocol voor dit ritmepatroon.'
+                    : 'Beoordeel hemodynamische stabiliteit en behandel contextgericht volgens lokaal protocol.';
+            }
+            if (!rhythm.firstActionWhy || typeof rhythm.firstActionWhy !== 'string') {
+                rhythm.firstActionWhy = 'Een veilige eerste stap voorkomt vertraging en beperkt klinisch risico.';
+            }
+            if (!rhythm.escalationCue || typeof rhythm.escalationCue !== 'string') {
+                rhythm.escalationCue = rhythm.urgency === 'critical' || rhythm.urgency === 'high'
+                    ? 'Escalatie nodig bij instabiliteit, pijn op de borst, hypotensie of bewustzijnsdaling.'
+                    : 'Escalatie bij verslechtering, diagnostische twijfel of uitblijven van respons.';
+            }
 
             if (overrides[rhythm.id]) {
                 const ov = overrides[rhythm.id];
                 rhythm.pitfalls = ov.pitfalls || rhythm.pitfalls;
                 rhythm.redFlags = ov.redFlags || rhythm.redFlags;
                 rhythm.lookalikes = ov.lookalikes || rhythm.lookalikes;
+            }
+            if (actionOverrides[rhythm.id]) {
+                rhythm.firstAction = actionOverrides[rhythm.id].firstAction || rhythm.firstAction;
+                rhythm.firstActionWhy = actionOverrides[rhythm.id].firstActionWhy || rhythm.firstActionWhy;
+                rhythm.escalationCue = actionOverrides[rhythm.id].escalationCue || rhythm.escalationCue;
             }
         });
     })();
@@ -6276,7 +6482,10 @@ a:hover { color: var(--primary-hover); }
             cases: { title: '🏥 Klinische Cases', icon: '🏥' },
             acls: { title: '🚨 ACLS Algoritmes', icon: '🚨' },
             drugs: { title: '💊 Medicatie & ECG', icon: '💊' },
-            criteria: { title: '📏 Criteria & Waarden', icon: '📏' }
+            criteria: { title: '📏 Criteria & Waarden', icon: '📏' },
+            progress: { title: '📈 Voortgang', icon: '📈' },
+            achievements: { title: '🏆 Prestaties', icon: '🏆' },
+            settings: { title: '⚙️ Instellingen', icon: '⚙️' }
         },
 
         init() {
@@ -6298,8 +6507,16 @@ a:hover { color: var(--primary-hover); }
                 return;
             }
 
+            const previousSection = AppState.currentSection;
+            if (previousSection === 'monitor' && sectionId !== 'monitor') {
+                ECGRenderer.stop('monitorCanvas');
+                ECGRenderer.destroy('monitorCanvas');
+                AppState.monitor.isRunning = false;
+            }
+
             // Update state
             AppState.currentSection = sectionId;
+            if (AppState.ui) AppState.ui.lastVisitedSection = sectionId;
 
             // Update nav items
             Utils.$$('.nav-item').forEach(item => {
@@ -6308,6 +6525,9 @@ a:hover { color: var(--primary-hover); }
 
             // Update title
             Utils.$('#pageTitle').textContent = this.sections[sectionId].title;
+            if (typeof ECGApp.updateBreadcrumb === 'function') {
+                ECGApp.updateBreadcrumb();
+            }
 
             // Render section content
             this.renderSection(sectionId);
@@ -6354,6 +6574,15 @@ a:hover { color: var(--primary-hover); }
                     break;
                 case 'criteria':
                     Sections.renderCriteria(content);
+                    break;
+                case 'progress':
+                    Sections.renderProgress(content);
+                    break;
+                case 'achievements':
+                    Sections.renderAchievements(content);
+                    break;
+                case 'settings':
+                    Sections.renderSettings(content);
                     break;
                 default:
                     content.innerHTML = '<p>Sectie wordt geladen...</p>';
@@ -6408,6 +6637,11 @@ a:hover { color: var(--primary-hover); }
                 heartRate: options.heartRate || 72,
                 speed: options.speed || this.settings.speed,
                 amplitude: options.amplitude || 1,
+                verticalScale: options.verticalScale || 1,
+                signalNoise: options.signalNoise || 0,
+                baselineWander: options.baselineWander || 0,
+                lineWidth: options.lineWidth || 2,
+                shadowBlur: options.shadowBlur || 4,
                 isRunning: false,
                 animationId: null,
                 lastTime: 0,
@@ -6463,6 +6697,10 @@ a:hover { color: var(--primary-hover); }
 
             const wp = rhythmData.waveformParams || {};
             const amplitude = params.amplitude || 1;
+            const heartRate = params.heartRate || 72;
+            const time = Number(params.time) || 0;
+            const beatIndex = Math.floor((time * heartRate) / 60);
+            const context = { ...params, time, beatIndex };
             
             // Normalize phase to 0-1
             phase = phase % 1;
@@ -6484,9 +6722,22 @@ a:hover { color: var(--primary-hover); }
                     value = (Math.random() - 0.5) * 0.02;
                     break;
 
+                case 'pea':
+                    // Organized electrical activity with lower amplitude variability.
+                    value = this.generateNormalQRS(
+                        phase,
+                        { ...wp, pHeight: wp.pHeight || 0.08, rHeight: wp.rHeight || 0.7, tHeight: wp.tHeight || 0.18 },
+                        amplitude * 0.9,
+                        heartRate,
+                        rhythmData,
+                        context
+                    );
+                    value += Math.sin((time + phase) * Math.PI * 2) * 0.015 * amplitude;
+                    break;
+
                 case 'atrial_fibrillation':
                     // AF - irregular with fibrillation baseline
-                    value = this.generateNormalQRS(phase, wp, amplitude);
+                    value = this.generateNormalQRS(phase, wp, amplitude, heartRate, rhythmData, context);
                     // Add fibrillation waves
                     value += Math.sin(phase * Math.PI * 15) * 0.03;
                     value += Math.sin(phase * Math.PI * 23) * 0.02;
@@ -6520,62 +6771,235 @@ a:hover { color: var(--primary-hover); }
 
                 default:
                     // Standard waveform (sinus-like)
-                    value = this.generateNormalQRS(phase, wp, amplitude);
+                    value = this.generateNormalQRS(phase, wp, amplitude, heartRate, rhythmData, context);
+            }
+
+            const lead = params.lead || 'II';
+            return this.applyLeadMorphology(value, phase, lead, rhythmData, wp);
+        },
+
+        applyLeadMorphology(value, phase, lead, rhythmData, wp = {}) {
+            if (!lead || lead === 'II') return value;
+
+            const qrsStart = 0.16;
+            const qrsEnd = 0.46;
+            const isQrsWindow = phase >= qrsStart && phase <= qrsEnd;
+            const isTWindow = phase >= 0.55 && phase <= 0.88;
+            const widePattern = !!(wp.wideQRS || wp.lbbbMorphology || wp.rbbbPattern || wp.rsrPattern);
+
+            if (lead === 'V1') {
+                let adjusted = value * 0.85;
+                if (isQrsWindow) adjusted = -value * (widePattern ? 0.95 : 0.75);
+                if (isTWindow) adjusted *= -0.85;
+                return adjusted;
+            }
+
+            if (lead === 'V5') {
+                let adjusted = value * 1.05;
+                if (isQrsWindow) {
+                    // V5 tends to show dominant positive R components in many rhythms.
+                    adjusted = Math.max(0, adjusted) + (Math.min(0, adjusted) * 0.35);
+                }
+                if (rhythmData?.id === 'lbbb') {
+                    adjusted = Math.max(adjusted, value * 0.9);
+                }
+                return adjusted;
             }
 
             return value;
         },
 
         // Generate normal sinus-like QRS
-        generateNormalQRS(phase, wp, amplitude) {
-            const pHeight = (wp.pHeight || 0.15) * amplitude;
-            const pWidth = wp.pWidth || 0.08;
+        generateNormalQRS(phase, wp, amplitude, heartRate = 72, rhythmData = null, context = {}) {
+            const bpm = Math.max(20, Number(heartRate) || 72);
+            const beatSeconds = Math.max(0.3, 60 / bpm);
+            const toPhase = (seconds) => seconds / beatSeconds;
+            const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+            const beatIndex = Number.isFinite(context?.beatIndex)
+                ? context.beatIndex
+                : Math.floor(((Number(context?.time) || 0) * bpm) / 60);
+
+            const hasNoP = !!(wp.absentP || wp.flatP || wp.fibrillation || wp.flutterWaves);
+            const hasRetrogradeP = !!wp.retrogradeP;
+            const pHeight = hasNoP ? 0 : (wp.pHeight || 0.15) * amplitude;
+            const pWidthSec = wp.pWidth || 0.08;
+
             const qDepth = (wp.qDepth || 0.05) * amplitude;
-            const rHeight = (wp.rHeight || 1.0) * amplitude;
-            const sDepth = (wp.sDepth || 0.15) * amplitude;
-            const tHeight = (wp.tHeight || 0.25) * amplitude;
-            const tWidth = wp.tWidth || 0.16;
-            const prInterval = wp.prInterval || 0.16;
-            const qrsWidth = wp.qrsWidth || 0.08;
+            let rHeight = (wp.rHeight || wp.qrsHeight || 1.0) * amplitude;
+            let sDepth = (wp.sDepth || 0.15) * amplitude;
+            if (wp.s1q3t3) {
+                sDepth = Math.max(sDepth, 0.28 * amplitude);
+            }
+
+            let qrsWidthSec = wp.qrsWidth || 0.08;
+            if (wp.wideQRS || wp.broadR || wp.lbbbMorphology || wp.rbbbPattern || wp.rsrPattern || wp.wideSinV6) {
+                qrsWidthSec = Math.max(qrsWidthSec, 0.12);
+            }
+            if (wp.narrowQRS) {
+                qrsWidthSec = Math.min(qrsWidthSec, 0.08);
+            }
+            qrsWidthSec = clamp(qrsWidthSec, 0.05, 0.22);
+
+            let prIntervalSec = wp.prInterval || 0.16;
+            if (wp.shortPR) prIntervalSec = Math.min(prIntervalSec, 0.11);
+            if (wp.longPR || wp.prolongedIntervals) prIntervalSec = Math.max(prIntervalSec, 0.22);
+            if (wp.tachycardia) prIntervalSec = Math.min(prIntervalSec, 0.13);
+            if (wp.bradycardia) prIntervalSec = Math.max(prIntervalSec, 0.18);
+
+            let droppedBeat = false;
+            if (wp.wenckebach) {
+                const cycleLength = Math.max(3, parseInt(wp.cycleLength, 10) || 4);
+                const beatInCycle = ((beatIndex % cycleLength) + cycleLength) % cycleLength;
+                droppedBeat = beatInCycle === cycleLength - 1;
+                const basePr = wp.initialPR || prIntervalSec;
+                const increment = wp.prIncrement || 0.03;
+                prIntervalSec = clamp(basePr + increment * beatInCycle, 0.12, 0.45);
+            }
+            if (wp.mobitzII) {
+                let num = 3;
+                let den = 2;
+                if (typeof wp.conductionRatio === 'string' && wp.conductionRatio.includes(':')) {
+                    const parts = wp.conductionRatio.split(':').map(v => parseInt(v, 10));
+                    if (!Number.isNaN(parts[0]) && !Number.isNaN(parts[1]) && parts[0] > 1 && parts[1] >= 1 && parts[1] < parts[0]) {
+                        num = parts[0];
+                        den = parts[1];
+                    }
+                }
+                const beatInCycle = ((beatIndex % num) + num) % num;
+                droppedBeat = beatInCycle >= den;
+                prIntervalSec = wp.constantPR || prIntervalSec;
+                qrsWidthSec = Math.max(qrsWidthSec, 0.12);
+            }
+
+            let tHeight = (wp.tHeight || 0.25) * amplitude;
+            let tWidthSec = wp.tWidth || 0.16;
+            let tPolarity = 1;
+
+            if (wp.tInversion || wp.tInversionV1V4 || wp.abnormalT || wp.wellensTypeB || wp.deepTInversion || rhythmData?.id === 'wellens') {
+                tPolarity = -1;
+            }
+            if (wp.s1q3t3) {
+                tPolarity = -1;
+            }
+            if (wp.tallSymmetricT || wp.hyperacuteT || wp.tentedT) {
+                tHeight = Math.max(tHeight, 0.45 * amplitude);
+            }
+            if (wp.deepTInversion) {
+                tHeight = Math.max(tHeight, 0.5 * amplitude);
+            }
+            if (wp.flatT) {
+                tHeight = Math.min(tHeight, 0.08 * amplitude);
+            }
+            if (wp.longQT || wp.longST) {
+                tWidthSec = Math.max(tWidthSec, 0.22);
+            }
+            if (wp.shortQT || wp.shortST) {
+                tWidthSec = Math.min(tWidthSec, 0.12);
+            }
+
+            let stLevel = 0;
+            if (typeof wp.stElevation === 'number') stLevel += wp.stElevation * 0.55 * amplitude;
+            if (typeof wp.stDepression === 'number') stLevel -= wp.stDepression * 0.55 * amplitude;
+            if (wp.concaveST || wp.diffuseSTElevation) stLevel += 0.06 * amplitude;
+            if (wp.scoopedST) stLevel -= 0.1 * amplitude;
+            if (wp.upSlopingSTdep) stLevel -= 0.14 * amplitude;
+            if (wp.prDepression && phase < 0.2) stLevel -= 0.02 * amplitude;
+
+            // Build dynamic phase windows from ECG interval settings.
+            const pStart = 0.02;
+            const pEnd = clamp(pStart + clamp(toPhase(pWidthSec), 0.04, 0.18), pStart + 0.04, 0.25);
+            const qrsStart = clamp(Math.max(pEnd + 0.02, toPhase(prIntervalSec)), pEnd + 0.02, 0.50);
+            const qrsEnd = clamp(qrsStart + clamp(toPhase(qrsWidthSec), 0.05, 0.30), qrsStart + 0.05, 0.78);
+            const stEnd = clamp(qrsEnd + clamp(toPhase(wp.longST ? 0.18 : wp.shortST ? 0.08 : 0.12), 0.06, 0.25), qrsEnd + 0.05, 0.90);
+            const tEnd = clamp(stEnd + clamp(toPhase(tWidthSec), 0.08, 0.30), stEnd + 0.08, 0.98);
 
             let value = 0;
 
-            // P wave (0.0 - 0.12)
-            if (phase < 0.12) {
-                const pPhase = phase / 0.12;
+            if (!hasNoP && phase >= pStart && phase < pEnd) {
+                const pPhase = (phase - pStart) / (pEnd - pStart);
                 value = pHeight * Math.sin(pPhase * Math.PI);
-            }
-            // PR segment (0.12 - 0.20)
-            else if (phase < 0.20) {
+            } else if (phase >= pEnd && phase < qrsStart) {
+                value = wp.prDepression ? -0.04 * amplitude : 0;
+            } else if (droppedBeat && phase >= qrsStart) {
+                // Non-conducted beat: P wave without following QRS/T.
+                value = 0;
+            } else if (phase >= qrsStart && phase < qrsEnd) {
+                const qrsPhase = (phase - qrsStart) / (qrsEnd - qrsStart);
+                if (qrsPhase < 0.22) {
+                    value = -qDepth * Math.sin((qrsPhase / 0.22) * Math.PI);
+                } else if (qrsPhase < 0.68) {
+                    value = rHeight * Math.sin(((qrsPhase - 0.22) / 0.46) * Math.PI);
+                } else {
+                    value = -sDepth * Math.sin(((qrsPhase - 0.68) / 0.32) * Math.PI);
+                }
+
+                // RSR'/RBBB style terminal R' notch
+                if ((wp.rsrPattern || wp.rbbbPattern) && qrsPhase > 0.72 && qrsPhase < 0.92) {
+                    value += 0.35 * amplitude * Math.sin(((qrsPhase - 0.72) / 0.20) * Math.PI);
+                }
+            } else if (phase >= qrsEnd && phase < stEnd) {
+                const stPhase = (phase - qrsEnd) / (stEnd - qrsEnd);
+                value = stLevel;
+                if (wp.upSlopingSTdep) {
+                    value = stLevel * (1 - stPhase);
+                }
+                if (wp.scoopedST) {
+                    value -= 0.07 * amplitude * Math.sin(stPhase * Math.PI);
+                }
+            } else if (phase >= stEnd && phase < tEnd) {
+                const tPhase = (phase - stEnd) / (tEnd - stEnd);
+                if (wp.tentedT) {
+                    value = tPolarity * tHeight * Math.pow(Math.sin(tPhase * Math.PI), 3);
+                } else {
+                    value = tPolarity * tHeight * Math.sin(tPhase * Math.PI);
+                }
+            } else {
                 value = 0;
             }
-            // Q wave (0.20 - 0.22)
-            else if (phase < 0.22) {
-                const qPhase = (phase - 0.20) / 0.02;
-                value = -qDepth * Math.sin(qPhase * Math.PI);
+
+            // Retrograde P-wave after QRS in junctional rhythms.
+            if (hasRetrogradeP && !droppedBeat) {
+                const rpStart = qrsEnd + 0.03;
+                const rpEnd = Math.min(0.96, rpStart + 0.10);
+                if (phase >= rpStart && phase < rpEnd) {
+                    const rpPhase = (phase - rpStart) / (rpEnd - rpStart);
+                    value += -0.1 * amplitude * Math.sin(rpPhase * Math.PI);
+                }
             }
-            // R wave (0.22 - 0.26)
-            else if (phase < 0.26) {
-                const rPhase = (phase - 0.22) / 0.04;
-                value = rHeight * Math.sin(rPhase * Math.PI);
+
+            // Delta wave (WPW): slurred upstroke before QRS.
+            const deltaStart = Math.max(0, qrsStart - 0.035);
+            if (wp.deltaWave && phase >= deltaStart && phase < qrsStart) {
+                const dPhase = (phase - deltaStart) / (qrsStart - deltaStart);
+                value += 0.18 * amplitude * dPhase;
             }
-            // S wave (0.26 - 0.30)
-            else if (phase < 0.30) {
-                const sPhase = (phase - 0.26) / 0.04;
-                value = -sDepth * Math.sin(sPhase * Math.PI);
+
+            // Pacer spike.
+            if (wp.pacingSpike) {
+                const spikeStart = Math.max(0, qrsStart - 0.008);
+                if (phase >= spikeStart && phase < qrsStart - 0.004) {
+                    value = Math.max(value, 0.7 * amplitude);
+                }
             }
-            // ST segment (0.30 - 0.45)
-            else if (phase < 0.45) {
-                value = 0;
+
+            // J/Osborn wave after QRS.
+            if (wp.osbornWave) {
+                const jStart = qrsEnd + 0.01;
+                const jEnd = jStart + 0.05;
+                if (phase >= jStart && phase < jEnd) {
+                    const jPhase = (phase - jStart) / (jEnd - jStart);
+                    value += 0.12 * amplitude * Math.sin(jPhase * Math.PI);
+                }
             }
-            // T wave (0.45 - 0.65)
-            else if (phase < 0.65) {
-                const tPhase = (phase - 0.45) / 0.20;
-                value = tHeight * Math.sin(tPhase * Math.PI);
-            }
-            // Baseline (0.65 - 1.0)
-            else {
-                value = 0;
+
+            // Prominent U-wave in late repolarization.
+            if (wp.prominentU) {
+                const uStart = tEnd + 0.02;
+                const uEnd = Math.min(1, uStart + 0.08);
+                if (phase >= uStart && phase < uEnd) {
+                    const uPhase = (phase - uStart) / (uEnd - uStart);
+                    value += 0.08 * amplitude * Math.sin(uPhase * Math.PI);
+                }
             }
 
             return value;
@@ -6766,6 +7190,8 @@ a:hover { color: var(--primary-hover); }
         updateWaveform(config, deltaTime) {
             const { ctx, width, height, speed, amplitude, heartRate, rhythm } = config;
             const ppm = this.settings.pixelsPerMM;
+            const rhythmData = ECGDatabase.getRhythmById(rhythm);
+            const wp = rhythmData?.waveformParams || {};
             
             // Calculate pixels to draw
             const pixelsPerSecond = speed * ppm;
@@ -6778,7 +7204,8 @@ a:hover { color: var(--primary-hover); }
 
             // Generate new points
             const baseline = height / 2;
-            const scale = height * 0.35;
+            // ECG calibration: 10 mm/mV at gain 1x. `verticalScale` is now only a multiplier.
+            const scale = this.settings.pixelsPerMM * this.settings.amplitude * (config.verticalScale || 1);
 
             for (let i = 0; i < pixelsToDraw; i++) {
                 // Hard reset at the right edge to avoid overlapping traces across cycles.
@@ -6790,20 +7217,30 @@ a:hover { color: var(--primary-hover); }
                 const x = config.x;
                 const phase = (x * phasePerPixel) % 1;
                 
-                // Add R-R variability for certain rhythms
+                // Add R-R variability where configured.
                 let adjustedPhase = phase;
-                if (rhythm === 'atrial_fibrillation' || rhythm === 'sinus_arrhythmia') {
-                    adjustedPhase += Math.sin(x * 0.01) * 0.1;
+                const rrVar = Number(wp.rrVariability || wp.variability || (wp.variableRR ? 0.25 : 0));
+                if (rrVar > 0) {
+                    adjustedPhase += Math.sin(x * 0.01) * Math.min(0.35, rrVar * 0.3);
                 }
 
                 const value = this.generateWaveformPoint(rhythm, adjustedPhase, {
                     amplitude,
-                    time: x / pixelsPerSecond
+                    time: x / pixelsPerSecond,
+                    heartRate,
+                    lead: config.lead || 'II'
                 });
+
+                const wanderOffset = config.baselineWander
+                    ? Math.sin((x / Math.max(1, width)) * Math.PI * 2 * 1.25) * config.baselineWander * scale
+                    : 0;
+                const noiseOffset = config.signalNoise
+                    ? (Math.random() - 0.5) * config.signalNoise * scale
+                    : 0;
 
                 config.buffer.push({
                     x,
-                    y: baseline - value * scale
+                    y: baseline + wanderOffset - value * scale + noiseOffset
                 });
 
                 config.x++;
@@ -6814,11 +7251,11 @@ a:hover { color: var(--primary-hover); }
 
             // Draw waveform
             ctx.strokeStyle = this.settings.waveColor;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = config.lineWidth || 2;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.shadowColor = this.settings.waveColor;
-            ctx.shadowBlur = 4;
+            ctx.shadowBlur = config.shadowBlur || 4;
 
             // Only keep recent points
             const maxPoints = width;
@@ -6851,6 +7288,38 @@ a:hover { color: var(--primary-hover); }
             // Clear ahead of sweep
             ctx.fillStyle = this.settings.backgroundColor;
             ctx.fillRect(sweepX + 2, 0, 50, height);
+
+            if (config.showIntervalsOverlay) {
+                this.drawIntervalsOverlay(ctx, width, height, heartRate, speed);
+            }
+        },
+
+        drawIntervalsOverlay(ctx, width, height, heartRate, speed) {
+            const bpm = Math.max(20, Number(heartRate) || 72);
+            const beatSeconds = Math.max(0.3, 60 / bpm);
+            const pxPerSecond = Math.max(1, speed * this.settings.pixelsPerMM);
+            const baselineY = height - 18;
+            const startX = 12;
+
+            const pr = Math.round(0.16 * pxPerSecond);
+            const qrs = Math.round(0.09 * pxPerSecond);
+            const qt = Math.round(0.36 * pxPerSecond);
+
+            const drawInterval = (label, fromX, toX, color) => {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(fromX, baselineY);
+                ctx.lineTo(toX, baselineY);
+                ctx.stroke();
+                ctx.fillStyle = color;
+                ctx.font = '10px sans-serif';
+                ctx.fillText(label, fromX, baselineY - 4);
+            };
+
+            drawInterval('PR', startX, startX + pr, 'rgba(6, 182, 212, 0.9)');
+            drawInterval('QRS', startX + pr + 6, startX + pr + 6 + qrs, 'rgba(245, 158, 11, 0.95)');
+            drawInterval('QT', startX + pr + qrs + 14, startX + pr + qrs + 14 + qt, 'rgba(239, 68, 68, 0.95)');
         },
 
         // Draw static ECG strip
@@ -6869,6 +7338,11 @@ a:hover { color: var(--primary-hover); }
             const height = rect.height;
             const heartRate = options.heartRate || 72;
             const amplitude = options.amplitude || 1;
+            const verticalScale = options.verticalScale || 1;
+            const signalNoise = options.signalNoise || 0;
+            const baselineWander = options.baselineWander || 0;
+            const lineWidth = options.lineWidth || 2;
+            const shadowBlur = options.shadowBlur || 3;
 
             // Draw grid
             this.drawGrid(ctx, width, height);
@@ -6880,32 +7354,44 @@ a:hover { color: var(--primary-hover); }
             const beatsPerSecond = heartRate / 60;
             const pixelsPerBeat = pixelsPerSecond / beatsPerSecond;
             const phasePerPixel = 1 / pixelsPerBeat;
+            const rhythmData = ECGDatabase.getRhythmById(rhythm);
+            const wp = rhythmData?.waveformParams || {};
 
             const baseline = height / 2;
-            const scale = height * 0.35;
+            // ECG calibration: 10 mm/mV at gain 1x. `verticalScale` is only a multiplier.
+            const scale = this.settings.pixelsPerMM * this.settings.amplitude * verticalScale;
 
             // Draw waveform
             ctx.strokeStyle = this.settings.waveColor;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = lineWidth;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.shadowColor = this.settings.waveColor;
-            ctx.shadowBlur = 3;
+            ctx.shadowBlur = shadowBlur;
 
             ctx.beginPath();
             for (let x = 0; x < width; x++) {
                 let phase = (x * phasePerPixel) % 1;
                 
-                // Add variability for AF
-                if (rhythm === 'atrial_fibrillation') {
-                    phase += Math.sin(x * 0.02 + Math.random() * 0.5) * 0.15;
+                // Add variability where configured.
+                const rrVar = Number(wp.rrVariability || wp.variability || (wp.variableRR ? 0.25 : 0));
+                if (rrVar > 0) {
+                    phase += Math.sin(x * 0.02) * Math.min(0.35, rrVar * 0.3);
                 }
 
                 const value = this.generateWaveformPoint(rhythm, phase, {
                     amplitude,
-                    time: x / pixelsPerSecond
+                    time: x / pixelsPerSecond,
+                    heartRate,
+                    lead: options.lead || 'II'
                 });
-                const y = baseline - value * scale;
+                const wanderOffset = baselineWander
+                    ? Math.sin((x / Math.max(1, width)) * Math.PI * 2 * 1.25) * baselineWander * scale
+                    : 0;
+                const noiseOffset = signalNoise
+                    ? (Math.random() - 0.5) * signalNoise * scale
+                    : 0;
+                const y = baseline + wanderOffset - value * scale + noiseOffset;
 
                 if (x === 0) {
                     ctx.moveTo(x, y);
@@ -6915,6 +7401,10 @@ a:hover { color: var(--primary-hover); }
             }
             ctx.stroke();
             ctx.shadowBlur = 0;
+
+            if (options.showIntervalsOverlay) {
+                this.drawIntervalsOverlay(ctx, width, height, heartRate, speed);
+            }
         },
 
         // Change rhythm on running canvas
@@ -6962,8 +7452,39 @@ a:hover { color: var(--primary-hover); }
             const weeklyFocus = LearningPathEngine.getWeeklyFocus();
             const dailyRound = LearningPathEngine.getDailyRound();
             const dailyDone = dailyRound.completedCaseIds.length;
+            const onboardingDone = AppState.ui?.onboardingCompleted === true;
+            const contextHelp = ECGApp.getContextHelpHTML('dashboard');
 
             container.innerHTML = `
+                ${contextHelp}
+                ${!onboardingDone ? `
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">🚀 Snelle Start (3 min)</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="grid-3">
+                                <div class="topic-card">
+                                    <div class="topic-card-title">1. Monitor basis</div>
+                                    <div class="topic-card-desc">Open monitor en wissel 2 ritmes.</div>
+                                    <button class="btn btn-sm btn-outline" onclick="Navigation.navigateTo('monitor')">Start</button>
+                                </div>
+                                <div class="topic-card">
+                                    <div class="topic-card-title">2. Module 1 quiz</div>
+                                    <div class="topic-card-desc">Doe een korte basisquiz in leerpad.</div>
+                                    <button class="btn btn-sm btn-outline" onclick="ECGApp.startModulePractice('module_1')">Start</button>
+                                </div>
+                                <div class="topic-card">
+                                    <div class="topic-card-title">3. Eerste case</div>
+                                    <div class="topic-card-desc">Koppel ECG aan kliniek in een case.</div>
+                                    <button class="btn btn-sm btn-outline" onclick="ECGApp.startCase('case_chest_pain')">Start</button>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary btn-sm mt-2" onclick="ECGApp.completeOnboarding()">✅ Snelle start afgerond</button>
+                        </div>
+                    </div>
+                ` : ''}
+
                 <div class="grid-2">
                     <!-- Welcome Card -->
                     <div class="card">
@@ -7158,20 +7679,30 @@ a:hover { color: var(--primary-hover); }
         renderMonitor(container) {
             const rhythms = ECGDatabase.getAllRhythms();
             const currentRhythm = ECGDatabase.getRhythmById(AppState.monitor.currentRhythm);
+            const monitorSpeed = AppState.monitor.speed || 25;
+            const monitorGain = AppState.monitor.amplitude || 1;
+            const monitorLead = AppState.monitor.lead || 'II';
+            const artifactLevel = AppState.monitor.artifactLevel || 'none';
+            const renderOptions = ECGApp.getMonitorRenderOptions();
+            const smallBoxSeconds = (1 / monitorSpeed).toFixed(2);
+            const largeBoxSeconds = (5 / monitorSpeed).toFixed(2);
+            const smallBoxMV = (0.1 / monitorGain).toFixed(2);
+            const largeBoxMV = (0.5 / monitorGain).toFixed(2);
 
             container.innerHTML = `
+                ${ECGApp.getContextHelpHTML('monitor')}
                 <div class="split-view">
                     <!-- Main Monitor -->
                     <div>
                         <div class="emergency-banner" style="background: linear-gradient(90deg, #001f1f, #003300); border-left: 4px solid #22c55e;">
                             <span>🫀</span>
-                            <span>Bedside monitor-weergave (Lead II, sweep links→rechts)</span>
+                            <span>Bedside monitor-weergave (Lead ${monitorLead}, sweep links→rechts)</span>
                         </div>
                         <div class="ecg-monitor">
                             <div class="ecg-monitor-header">
                                 <div class="ecg-monitor-title">
                                     <span class="pulse">●</span>
-                                    ICU Monitor - ECG Lead II
+                                    ICU Monitor - ECG Lead ${monitorLead}
                                 </div>
                                 <div class="ecg-monitor-vitals">
                                     <div class="vital-display">
@@ -7190,17 +7721,37 @@ a:hover { color: var(--primary-hover); }
                             </div>
                             <div class="ecg-canvas-wrapper">
                                 <canvas id="monitorCanvas" class="ecg-canvas large"></canvas>
-                                <div class="ecg-lead-label">II</div>
+                                <div class="ecg-lead-label">${monitorLead}</div>
                             </div>
                             <div class="ecg-controls">
-                                <div class="ecg-setting">Sweep: <span>${AppState.monitor.speed} mm/s</span></div>
-                                <div class="ecg-setting">Gain: <span>${AppState.monitor.amplitude}x</span></div>
+                                <div class="ecg-setting">Sweep: <span>${monitorSpeed} mm/s</span></div>
+                                <div class="ecg-setting">Gain: <span>${monitorGain}x</span></div>
                                 <div class="ecg-setting">Kalibratie: <span>10 mm/mV</span></div>
+                                <div class="ecg-setting">Lead: <span>${monitorLead}</span></div>
+                                <div class="ecg-setting">Artifact: <span>${artifactLevel}</span></div>
+                                <div class="ecg-setting">Tijd per hokje: <span>klein ${smallBoxSeconds}s • groot ${largeBoxSeconds}s</span></div>
+                                <div class="ecg-setting">mV per hokje: <span>klein ${smallBoxMV} mV • groot ${largeBoxMV} mV</span></div>
                                 <div class="btn-group">
                                     <button class="btn btn-sm ${AppState.monitor.isRunning ? 'btn-danger' : 'btn-success'}" 
                                             id="monitorToggle" onclick="ECGApp.toggleMonitor()">
                                         ${AppState.monitor.isRunning ? '⏸ Pauze' : '▶ Start'}
                                     </button>
+                                    <button class="btn btn-sm btn-outline" onclick="ECGApp.toggleMonitorFreeze()">
+                                        ${AppState.monitor.freezeFrame ? '▶ Hervat' : '❄ Freeze'}
+                                    </button>
+                                    <button class="btn btn-sm btn-outline" onclick="ECGApp.toggleMonitorOverlay()">
+                                        ${AppState.monitor.showIntervalsOverlay ? 'Overlay uit' : 'Overlay aan'}
+                                    </button>
+                                </div>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm ${monitorLead === 'II' ? 'btn-primary' : 'btn-outline'}" onclick="ECGApp.setMonitorLead('II')">Lead II</button>
+                                    <button class="btn btn-sm ${monitorLead === 'V1' ? 'btn-primary' : 'btn-outline'}" onclick="ECGApp.setMonitorLead('V1')">Lead V1</button>
+                                    <button class="btn btn-sm ${monitorLead === 'V5' ? 'btn-primary' : 'btn-outline'}" onclick="ECGApp.setMonitorLead('V5')">Lead V5</button>
+                                </div>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm ${artifactLevel === 'none' ? 'btn-primary' : 'btn-outline'}" onclick="ECGApp.setMonitorArtifact('none')">Artifact uit</button>
+                                    <button class="btn btn-sm ${artifactLevel === 'low' ? 'btn-primary' : 'btn-outline'}" onclick="ECGApp.setMonitorArtifact('low')">Artifact laag</button>
+                                    <button class="btn btn-sm ${artifactLevel === 'medium' ? 'btn-primary' : 'btn-outline'}" onclick="ECGApp.setMonitorArtifact('medium')">Artifact medium</button>
                                 </div>
                             </div>
                         </div>
@@ -7267,6 +7818,7 @@ a:hover { color: var(--primary-hover); }
                                                 <div style="padding: 0.5rem;">
                                                     ${catRhythms.map(r => `
                                                         <button class="rhythm-btn ${AppState.monitor.currentRhythm === r.id ? 'active' : ''}" 
+                                                                data-rhythm-id="${r.id}"
                                                                 onclick="ECGApp.setMonitorRhythm('${r.id}')"
                                                                 style="width: 100%; margin-bottom: 0.25rem;">
                                                             <span class="rhythm-indicator ${r.urgency === 'critical' ? 'red' : r.urgency === 'high' ? 'yellow' : 'green'}"></span>
@@ -7289,10 +7841,26 @@ a:hover { color: var(--primary-hover); }
             setTimeout(() => {
                 ECGRenderer.initCanvas('monitorCanvas', {
                     rhythm: AppState.monitor.currentRhythm,
-                    heartRate: AppState.monitor.heartRate
+                    heartRate: AppState.monitor.heartRate,
+                    speed: monitorSpeed,
+                    amplitude: AppState.monitor.amplitude || 1,
+                    lead: monitorLead,
+                    signalNoise: renderOptions.signalNoise,
+                    baselineWander: renderOptions.baselineWander,
+                    showIntervalsOverlay: AppState.monitor.showIntervalsOverlay
                 });
-                if (AppState.monitor.isRunning) {
+                if (AppState.monitor.isRunning && !AppState.monitor.freezeFrame) {
                     ECGRenderer.start('monitorCanvas');
+                } else {
+                    ECGRenderer.drawStaticStrip('monitorCanvas', AppState.monitor.currentRhythm, {
+                        heartRate: AppState.monitor.heartRate,
+                        speed: monitorSpeed,
+                        amplitude: AppState.monitor.amplitude || 1,
+                        lead: monitorLead,
+                        signalNoise: renderOptions.signalNoise,
+                        baselineWander: renderOptions.baselineWander,
+                        showIntervalsOverlay: AppState.monitor.showIntervalsOverlay
+                    });
                 }
             }, 100);
         },
@@ -7419,6 +7987,17 @@ a:hover { color: var(--primary-hover); }
                             <div class="btn-group mt-2">
                                 <button class="btn btn-outline btn-sm" onclick="ECGApp.startChecklistTraining()">⏱️ Start Timer</button>
                                 <button class="btn btn-primary btn-sm" onclick="ECGApp.completeChecklistTraining()">✅ Sessie afronden</button>
+                            </div>
+                        </div>
+
+                        <div class="algorithm-box info mb-3">
+                            <div class="algorithm-title">🎯 Mini-drills per stap</div>
+                            <p class="text-muted" style="margin-top:0.5rem;">Korte 30-60 sec checks om het 10-stappenmodel te automatiseren.</p>
+                            <div class="btn-group mt-2" style="flex-wrap: wrap;">
+                                <button class="btn btn-sm btn-outline" onclick="ECGApp.openSystematicDrill('rate')">Frequentie drill</button>
+                                <button class="btn btn-sm btn-outline" onclick="ECGApp.openSystematicDrill('rhythm')">Ritme drill</button>
+                                <button class="btn btn-sm btn-outline" onclick="ECGApp.openSystematicDrill('conduction')">Geleiding drill</button>
+                                <button class="btn btn-sm btn-outline" onclick="ECGApp.openSystematicDrill('ischemia')">ST/T drill</button>
                             </div>
                         </div>
 
@@ -7633,6 +8212,7 @@ a:hover { color: var(--primary-hover); }
                 ? "ECGApp.startCoachSession('recovery')"
                 : "ECGApp.showPrerequisiteHelp('recovery')";
             container.innerHTML = `
+                ${ECGApp.getContextHelpHTML('quiz')}
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">🎯 Quiz Configuratie</h3>
@@ -7662,6 +8242,11 @@ a:hover { color: var(--primary-hover); }
                                         <div class="quick-action-icon">🏥</div>
                                         <div class="quick-action-title">Klinische Scenario's</div>
                                         <div class="quick-action-desc">ECG + patiënt context</div>
+                                    </div>
+                                    <div class="quick-action" onclick="ECGApp.startCriticalQuiz()">
+                                        <div class="quick-action-icon">💔</div>
+                                        <div class="quick-action-title">Kritieke Ritmes</div>
+                                        <div class="quick-action-desc">Alleen high/critical ritmes</div>
                                     </div>
                                     <div class="quick-action ${recoveryAvailable ? '' : 'locked'}" onclick="${recoveryAction}">
                                         <div class="quick-action-icon">🩹</div>
@@ -7758,15 +8343,42 @@ a:hover { color: var(--primary-hover); }
             const quiz = AppState.quiz;
             const rhythm = quiz.currentRhythm;
             const progress = ((quiz.currentQuestion) / quiz.totalQuestions) * 100;
+            const adaptive = quiz.currentAdaptiveProfile || QuizEngine.getAdaptiveProfile(quiz);
+            const visualProfile = adaptive?.visual || {};
+            const allowHints = quiz.mode !== 'exam' && (AppState.settings?.showHints !== false || !!adaptive?.forceHints);
 
             if (!rhythm) {
                 container.innerHTML = '<p>Laden...</p>';
                 return;
             }
 
-            // Generate options
-            const distractors = ECGDatabase.getDistractors(rhythm.id, 3);
-            const options = Utils.shuffle([rhythm, ...distractors]);
+            const buildMorphologyGuide = () => {
+                const rhythmText = rhythm.characteristics?.rhythm || 'onbekend';
+                const pText = rhythm.characteristics?.pWave || 'beoordeel P-golven';
+                const qrsRaw = rhythm.characteristics?.qrsComplex;
+                const qrsText = typeof qrsRaw === 'object'
+                    ? `${qrsRaw.min || '?'}-${qrsRaw.max || '?'} ${qrsRaw.unit || 'ms'}`
+                    : (qrsRaw || 'beoordeel QRS-breedte');
+                return `
+                    <div class="info-box info mb-2">
+                        <div class="info-box-icon">🧭</div>
+                        <div class="info-box-content">
+                            <h4>Leerhulp (module basis)</h4>
+                            <ul class="styled-list">
+                                <li><strong>Ritme:</strong> ${rhythmText}</li>
+                                <li><strong>P-golf:</strong> ${pText}</li>
+                                <li><strong>QRS:</strong> ${qrsText}</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            };
+
+            const payload = quiz.currentQuestionPayload || QuizEngine.buildQuestionPayload(quiz, rhythm);
+            const questionType = payload?.type || quiz.questionType || 'recognition';
+            const options = Array.isArray(payload?.options) ? payload.options : [];
+            const questionPrompt = payload?.prompt || 'Welk ritme zie je?';
+            quiz.currentOptionIds = options.map(o => o.id);
 
             container.innerHTML = `
                 <!-- Progress Bar -->
@@ -7776,9 +8388,13 @@ a:hover { color: var(--primary-hover); }
                             <span>Vraag ${quiz.currentQuestion + 1} van ${quiz.totalQuestions}</span>
                             <div style="display: flex; gap: 1rem; align-items: center;">
                                 ${quiz.mode === 'exam' ? '<span class="badge badge-hard">Examenmodus</span>' : ''}
+                                ${quiz.mode === 'critical' ? '<span class="badge badge-critical">Kritieke ritmes</span>' : ''}
                                 ${quiz.mode === 'recovery' ? '<span class="badge badge-medium">Herstelronde</span>' : ''}
                                 ${quiz.mode === 'coach' ? '<span class="badge badge-info">Leercoach</span>' : ''}
                                 ${quiz.mode === 'sprint' ? '<span class="badge badge-info">Sprint 5m</span>' : ''}
+                                ${quiz.questionType === 'differential' ? '<span class="badge badge-info">Differentiaal</span>' : ''}
+                                ${quiz.questionType === 'first_action' ? '<span class="badge badge-warning">Eerste stap</span>' : ''}
+                                ${adaptive?.levelLabel ? `<span class="badge badge-info">${adaptive.levelLabel}</span>` : ''}
                                 <span class="text-success">✓ ${quiz.score}</span>
                                 ${quiz.mode === 'timed' ? `
                                     <span class="text-warning" id="quizTimer">⏱️ ${quiz.timeRemaining}s</span>
@@ -7796,7 +8412,7 @@ a:hover { color: var(--primary-hover); }
                     <div class="ecg-monitor-header">
                         <div class="ecg-monitor-title">
                             <span>🎯</span>
-                            Welk ritme zie je?
+                            ${questionPrompt}
                         </div>
                         <div class="ecg-monitor-vitals">
                             <div class="vital-display">
@@ -7811,16 +8427,22 @@ a:hover { color: var(--primary-hover); }
                     </div>
                 </div>
 
+                ${adaptive?.showMorphologyGuide ? buildMorphologyGuide() : ''}
+
                 <!-- Answer Options -->
                 <div class="card">
                     <div class="card-body">
                         <div class="quiz-options" id="quizOptions">
                             ${options.map((opt, index) => `
-                                <div class="quiz-option" data-rhythm="${opt.id}" onclick="ECGApp.selectAnswer('${opt.id}')">
+                                <div class="quiz-option" data-answer="${opt.id}" onclick="ECGApp.selectAnswer('${opt.id}')">
                                     <span class="quiz-option-key">${String.fromCharCode(65 + index)}</span>
                                     <div class="quiz-option-content">
-                                        <div class="quiz-option-title">${opt.name}</div>
-                                        <div class="quiz-option-desc">${opt.shortName} - ${opt.description.substring(0, 50)}...</div>
+                                        <div class="quiz-option-title">${questionType === 'first_action' ? opt.label : opt.name}</div>
+                                        <div class="quiz-option-desc">
+                                            ${questionType === 'first_action'
+                                                ? (opt.description || 'Kies de eerste veilige stap.')
+                                                : `${opt.shortName} - ${(opt.description || '').substring(0, 60)}...`}
+                                        </div>
                                     </div>
                                 </div>
                             `).join('')}
@@ -7831,7 +8453,7 @@ a:hover { color: var(--primary-hover); }
 
                         <!-- Action Buttons -->
                         <div class="btn-group mt-3" style="justify-content: space-between;">
-                            ${quiz.mode !== 'exam' && AppState.settings?.showHints !== false ? `
+                            ${allowHints ? `
                                 <button class="btn btn-outline" onclick="ECGApp.showHint()">
                                     💡 Hint
                                 </button>
@@ -7844,10 +8466,21 @@ a:hover { color: var(--primary-hover); }
                 </div>
             `;
 
+            ECGApp.updateBreadcrumb(`Quiz > Vraag ${quiz.currentQuestion + 1}/${quiz.totalQuestions}`);
+
             // Draw ECG
             setTimeout(() => {
                 const rate = rhythm.characteristics?.rate?.typical || 72;
-                ECGRenderer.drawStaticStrip('quizECG', rhythm.id, { heartRate: rate });
+                ECGRenderer.drawStaticStrip('quizECG', rhythm.id, {
+                    heartRate: rate,
+                    speed: visualProfile.speed || 25,
+                    amplitude: visualProfile.amplitude || 1,
+                    verticalScale: visualProfile.verticalScale || 1,
+                    lineWidth: visualProfile.lineWidth || 2,
+                    shadowBlur: visualProfile.shadowBlur || 3,
+                    signalNoise: visualProfile.signalNoise || 0,
+                    baselineWander: visualProfile.baselineWander || 0
+                });
             }, 100);
 
             // Start timer if timed mode
@@ -7859,12 +8492,13 @@ a:hover { color: var(--primary-hover); }
         // ========== CLINICAL CASES ==========
         renderCases(container) {
             container.innerHTML = `
+                ${ECGApp.getContextHelpHTML('cases')}
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">🏥 Klinische Cases</h3>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted mb-3">Oefen met realistische IC scenario's waar je ECG interpretatie combineert met klinische context.</p>
+                        <p class="text-muted mb-3">Oefen met ${ClinicalCases.getAllCases().length} realistische IC/SEH scenario's waar je ECG-interpretatie combineert met klinische context.</p>
 
                         <div class="grid-2">
                             ${ClinicalCases.getAllCases().map(caseData => `
@@ -7878,6 +8512,7 @@ a:hover { color: var(--primary-hover); }
                                             </div>
                                         </div>
                                         <p class="text-muted" style="font-size: 0.9rem;">${caseData.presentation}</p>
+                                        ${caseData.moduleId ? `<p class="text-muted" style="font-size:0.8rem;">Leerpad: ${LearningPathEngine.getModuleById(caseData.moduleId)?.title || caseData.moduleId}</p>` : ''}
                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
                                             <span class="badge ${Utils.getDifficultyBadge(caseData.difficulty)}">${caseData.difficulty}</span>
                                             <span class="text-muted" style="font-size: 0.8rem;">${caseData.duration} min</span>
@@ -8673,6 +9308,302 @@ a:hover { color: var(--primary-hover); }
                         explanation: 'Bij stabiele AF is rate control meestal met een bètablokker (zoals metoprolol) of, afhankelijk van LV-functie/comorbiditeit, een non-DHP calciumantagonist. Digoxine vooral in geselecteerde situaties (bijv. hartfalen/sedentair). Flecaïnide is rhythm-control, niet eerste keus voor rate control.'
                     }
                 ]
+            },
+            {
+                id: 'case_post_arrest_stemi',
+                moduleId: 'module_5',
+                title: 'Post-ROSC met ischemisch patroon',
+                patientIcon: '🚑',
+                patientInfo: 'Man, 61 jaar',
+                presentation: 'ROSC na korte VF-reanimatie, nu geintubeerd en hemodynamisch net stabiel.',
+                vitals: { hr: 108, bp: '102/64', spo2: 98, rr: 14 },
+                rhythm: 'stemi_inferior',
+                difficulty: 'hard',
+                duration: 12,
+                learningObjectives: [
+                    'Herken een inferieur STEMI-patroon na ROSC',
+                    'Koppel post-arrestzorg aan snelle reperfusieregeling'
+                ],
+                debrief: 'Na ROSC blijft oorzaakbehandeling cruciaal; bij STEMI-criteria blijft urgente coronairangiografie aangewezen.',
+                questions: [
+                    {
+                        type: 'recognition',
+                        question: 'Welke ECG-conclusie past het best?',
+                        options: ['Normale post-arrest repolarisatie', 'Inferieur STEMI-patroon', 'Alleen pericarditis', 'Alleen rechterbundeltakblok'],
+                        correct: 1,
+                        explanation: 'ST-elevatie in inferieure afleidingen met passend territoriaal patroon past bij inferieur STEMI.',
+                        sourceId: 'esc_acs_2023',
+                        guidelineRef: 'ESC ACS 2023: STEMI-interpretatie en reperfusiebeleid in post-arrestcontext.'
+                    },
+                    {
+                        type: 'first_action',
+                        question: 'Wat is de eerstvolgende beste stap?',
+                        options: ['Alleen seriele troponines afwachten', 'Urgente coronairstrategie/cathlab in gang zetten', 'Eerst 24 uur observatie zonder interventie', 'Alleen anti-aritmica voortzetten'],
+                        correct: 1,
+                        explanation: 'Bij post-ROSC met STEMI-patroon is snelle invasieve coronairstrategie aangewezen conform ACS-richtlijn.',
+                        sourceId: 'esc_acs_2023',
+                        guidelineRef: 'ESC ACS 2023: onmiddellijke reperfusiestrategie bij STEMI.'
+                    }
+                ]
+            },
+            {
+                id: 'case_sepsis_tachyarrhythmia',
+                moduleId: 'module_3',
+                title: 'Sepsis met tachyaritmie',
+                patientIcon: '🧫',
+                patientInfo: 'Vrouw, 74 jaar',
+                presentation: 'Septische shock op de IC, nu toenemende tachycardie en dyspneu.',
+                vitals: { hr: 156, bp: '98/58', spo2: 91, rr: 30 },
+                rhythm: 'atrial_fibrillation',
+                difficulty: 'hard',
+                duration: 11,
+                learningObjectives: [
+                    'Differentieer AF met snelle respons van sinus/sepsis-tachycardie',
+                    'Koppel ritmebehandeling aan oorzaakgerichte sepsiszorg'
+                ],
+                debrief: 'Bij sepsis met AF-RVR behandel je parallel: hemodynamiek, infectiebron en ritme/frequentiecontrole.',
+                questions: [
+                    {
+                        type: 'recognition',
+                        question: 'Welke ritmediagnose is het meest waarschijnlijk?',
+                        options: ['Sinustachycardie', 'Atriumfibrilleren met snelle ventrikelrespons', 'Atriumflutter 2:1', 'Monomorfe VT'],
+                        correct: 1,
+                        explanation: 'Het onregelmatig-onregelmatige patroon zonder consistente P-golven past bij AF met RVR.',
+                        sourceId: 'esc_af_2024',
+                        guidelineRef: 'ESC AF 2024: AF-diagnostiek in acute setting.'
+                    },
+                    {
+                        type: 'first_action',
+                        question: 'Wat is de beste eerste managementstap?',
+                        options: ['Alleen adenosine geven', 'Hemodynamische stabiliteit beoordelen en oorzaak plus rate-control parallel behandelen', 'Direct elektrische defibrillatie zonder ritmebeoordeling', 'Geen ritme-interventie doen'],
+                        correct: 1,
+                        explanation: 'Bij mogelijk nog stabiele AF in sepsis staat gecombineerde oorzaakbehandeling en gecontroleerde rate-control centraal.',
+                        sourceId: 'esc_af_2024',
+                        guidelineRef: 'ESC AF 2024: rate-control in klinische context met hemodynamische beoordeling.'
+                    }
+                ]
+            },
+            {
+                id: 'case_intox_qt',
+                moduleId: 'module_7',
+                title: 'Intoxicatie met QT-verlenging',
+                patientIcon: '💊',
+                patientInfo: 'Vrouw, 29 jaar',
+                presentation: 'Inname van meerdere QT-verlengende middelen, nu palpitaties en presyncope.',
+                vitals: { hr: 118, bp: '110/68', spo2: 97, rr: 20 },
+                rhythm: 'long_qt',
+                difficulty: 'hard',
+                duration: 10,
+                learningObjectives: [
+                    'Herken een risicovol lang-QT-patroon',
+                    'Start torsades-profylaxe en triggercorrectie'
+                ],
+                debrief: 'Lang QT verhoogt torsadesrisico; corrigeer reversibele factoren snel en monitor continu.',
+                questions: [
+                    {
+                        type: 'recognition',
+                        question: 'Wat is de belangrijkste ECG-bevinding?',
+                        options: ['Kort PR-interval met delta-golf', 'Verlengd QTc met torsadesrisico', 'Acute ST-elevatie', 'Sinoatriaal blok'],
+                        correct: 1,
+                        explanation: 'Een duidelijk verlengd QTc in deze context wijst op verhoogd risico op polymorfe VT/torsades.',
+                        sourceId: 'esc_va_2022',
+                        guidelineRef: 'ESC VA 2022: lang QT als substrate voor polymorfe VT/torsades.'
+                    },
+                    {
+                        type: 'first_action',
+                        question: 'Wat is de eerste veilige stap?',
+                        options: ['QT-verlengende middelen continueren', 'Stop uitlokkende middelen, corrigeer elektrolyten en geef magnesium bij risico/aritmie', 'Adenosine als standaardbehandeling', 'Alleen geruststellen en ontslag'],
+                        correct: 1,
+                        explanation: 'Eerste stap is triggerstop en correctie van elektrolyten; magnesium is aangewezen bij torsadesrisico of polymorfe VT.',
+                        sourceId: 'esc_va_2022',
+                        guidelineRef: 'ESC VA 2022: acute aanpak van torsadesgevoeligheid en polymorfe VT.'
+                    }
+                ]
+            },
+            {
+                id: 'case_hypokalemia_qt',
+                moduleId: 'module_7',
+                title: 'Hypokaliemie op de bewaking',
+                patientIcon: '🧪',
+                patientInfo: 'Man, 67 jaar',
+                presentation: 'Diureticagebruik, nu spierkrampen en extrasystolen op telemetrie.',
+                vitals: { hr: 102, bp: '124/76', spo2: 97, rr: 18 },
+                rhythm: 'hypokalemia',
+                difficulty: 'medium',
+                duration: 9,
+                learningObjectives: [
+                    'Herken U-golven en repolarisatieveranderingen bij hypokaliemie',
+                    'Voorkom progressie naar ventriculaire aritmieen'
+                ],
+                debrief: 'Hypokaliemie vergroot aritmiekans. Corrigeer kalium gericht en monitor ECG-dynamiek.',
+                questions: [
+                    {
+                        type: 'recognition',
+                        question: 'Welk patroon past het best bij hypokaliemie?',
+                        options: ['Spitse T-golven met PR-verkorting', 'Afgevlakte T-golven met prominente U-golven', 'Diffuse ST-elevatie met PR-depressie', 'Breedcomplex escape-ritme'],
+                        correct: 1,
+                        explanation: 'Afgevlakte T-golven, ST-depressie en prominente U-golven zijn klassiek voor hypokaliemie.',
+                        sourceId: 'erc_als_2025',
+                        guidelineRef: 'ERC/ALS 2025: ECG-patronen en risicocontext bij elektrolytstoornissen.'
+                    },
+                    {
+                        type: 'first_action',
+                        question: 'Wat is de eerste managementstap?',
+                        options: ['Kaliumsuppletie starten met continue ECG-monitoring', 'Geen actie, alleen herhalen over 24 uur', 'Direct adenosine bolus', 'Alleen anti-aritmica starten'],
+                        correct: 0,
+                        explanation: 'Bij symptomatische of ECG-relevante hypokaliemie start je gecontroleerde kaliumcorrectie met ritmemonitoring.',
+                        sourceId: 'erc_als_2025',
+                        guidelineRef: 'ERC/ALS 2025: vroege correctie van reversibele metabole oorzaken.'
+                    }
+                ]
+            },
+            {
+                id: 'case_pacemaker_failure',
+                moduleId: 'module_7',
+                title: 'Pacemakerprobleem na opname',
+                patientIcon: '🫀',
+                patientInfo: 'Man, 81 jaar',
+                presentation: 'Bekende pacemakerdrager met duizeligheid en near-syncope.',
+                vitals: { hr: 38, bp: '88/54', spo2: 95, rr: 17 },
+                rhythm: 'pacemaker_malfunction',
+                difficulty: 'hard',
+                duration: 11,
+                learningObjectives: [
+                    'Herken falende pacing/capture op ECG',
+                    'Start veilige overbrugging bij symptomatische bradycardie'
+                ],
+                debrief: 'Bij pacemakerfailure staat eerst patientveiligheid voorop: monitoren, tijdelijke overbrugging en device-evaluatie.',
+                questions: [
+                    {
+                        type: 'recognition',
+                        question: 'Welke ECG-conclusie is het meest waarschijnlijk?',
+                        options: ['Normale dual-chamber pacing', 'Pacemaker malfunction met capture-sensingprobleem', 'Sinusritme zonder deviceactiviteit', 'Typische AVNRT'],
+                        correct: 1,
+                        explanation: 'Pacing spikes zonder consistente capture en/of onjuiste sensing passen bij pacemaker malfunction.',
+                        sourceId: 'esc_pacing_2021',
+                        guidelineRef: 'ESC Pacing 2021: herkenning van capture/sensing-problemen.'
+                    },
+                    {
+                        type: 'first_action',
+                        question: 'Wat is de eerste veilige stap bij deze instabiliteit?',
+                        options: ['Afwachten tot devicecontrole morgen', 'Transcutane pacing/overbrugging en urgente pacemaker-evaluatie', 'Adenosine geven', 'Alleen orale medicatie starten'],
+                        correct: 1,
+                        explanation: 'Bij symptomatische bradycardie door vermoedelijke devicefailure is tijdelijke pacingoverbrugging met urgente evaluatie passend.',
+                        sourceId: 'esc_pacing_2021',
+                        guidelineRef: 'ESC Pacing 2021: acute overbrugging en urgente device-evaluatie.'
+                    }
+                ]
+            },
+            {
+                id: 'case_dewinter_acs',
+                moduleId: 'module_6',
+                title: 'ACS-equivalent zonder ST-elevatie',
+                patientIcon: '🚨',
+                patientInfo: 'Man, 52 jaar',
+                presentation: 'Aanhoudende thoracale pijn en vegetatieve klachten, geen klassieke ST-elevatie.',
+                vitals: { hr: 104, bp: '138/88', spo2: 97, rr: 22 },
+                rhythm: 'deWinter',
+                difficulty: 'hard',
+                duration: 12,
+                learningObjectives: [
+                    'Herken het de Winter-patroon als occlusie-equivalent',
+                    'Escaleer reperfusiebeleid ondanks afwezigheid van klassiek STEMI'
+                ],
+                debrief: 'Het de Winter-patroon is hoog-risico voor acute coronairocclusie en vraagt snelle invasieve strategie.',
+                questions: [
+                    {
+                        type: 'recognition',
+                        question: 'Hoe interpreteer je dit ECG het best?',
+                        options: ['Laag-risico NSTEMI zonder urgentie', 'de Winter-patroon, STEMI-equivalent', 'Pericarditis', 'Benigne vroege repolarisatie'],
+                        correct: 1,
+                        explanation: 'Upsloping ST-depressie met hoge symmetrische T-golven in precordiale afleidingen past bij de Winter, een STEMI-equivalent.',
+                        sourceId: 'de_winter_2019',
+                        guidelineRef: 'de Winter review: STEMI-equivalent patroon met hoge occlusiewaarde.'
+                    },
+                    {
+                        type: 'first_action',
+                        question: 'Wat is de juiste eerste vervolgstap?',
+                        options: ['Afwachten op seriele ECG-verandering', 'Behandel als acute coronairocclusie en activeer urgente coronairstrategie', 'Alleen pijnstilling en ontslag', 'Adenosine proefbehandeling'],
+                        correct: 1,
+                        explanation: 'Ondanks ontbrekende klassieke ST-elevatie behandel je dit patroon als acute occlusie met urgente reperfusiestrategie.',
+                        sourceId: 'esc_acs_2023',
+                        guidelineRef: 'ESC ACS 2023: hoog-risico ischemiepatronen vereisen urgente coronairstrategie.'
+                    }
+                ]
+            },
+            {
+                id: 'case_unstable_brady',
+                moduleId: 'module_5',
+                title: 'Instabiele bradycardie op de SEH',
+                patientIcon: '🧓',
+                patientInfo: 'Vrouw, 79 jaar',
+                presentation: 'Duizelig, klam en hypotensief met episodes van bijna-syncope.',
+                vitals: { hr: 32, bp: '82/48', spo2: 93, rr: 20 },
+                rhythm: 'avblock_2nd_type2',
+                difficulty: 'hard',
+                duration: 10,
+                learningObjectives: [
+                    'Herken hooggradig geleidingsprobleem met instabiliteit',
+                    'Kies tijdige pacing-escalatie boven afwachten'
+                ],
+                debrief: 'Bij Mobitz II met instabiliteit is vroege pacing essentieel; alleen medicamenteus beleid is vaak onvoldoende.',
+                questions: [
+                    {
+                        type: 'recognition',
+                        question: 'Welke ritmediagnose is het meest waarschijnlijk?',
+                        options: ['Sinusbradycardie', 'Mobitz I (Wenckebach)', 'Mobitz II AV-blok', 'Junctionele tachycardie'],
+                        correct: 2,
+                        explanation: 'Constante PR-intervalen met plots uitvallende QRS-complexen passen bij Mobitz II.',
+                        sourceId: 'esc_pacing_2021',
+                        guidelineRef: 'ESC Pacing 2021: diagnostische kenmerken Mobitz II.'
+                    },
+                    {
+                        type: 'first_action',
+                        question: 'Wat is de eerste veilige stap bij deze instabiliteit?',
+                        options: ['Alleen observeren', 'Direct pacingpad starten (transcutaan) en specialistisch opschalen', 'Adenosine geven', 'Alleen orale beta-blokker geven'],
+                        correct: 1,
+                        explanation: 'Instabiele hooggradige AV-geleidingsstoornis vraagt directe pacingoverbrugging en snelle escalatie.',
+                        sourceId: 'erc_als_2025',
+                        guidelineRef: 'ERC/ALS 2025: instabiele bradycardie met pacing-escalatie.'
+                    }
+                ]
+            },
+            {
+                id: 'case_wide_complex_tachy',
+                moduleId: 'module_5',
+                title: 'Breedcomplex tachycardie met differentiaal',
+                patientIcon: '⚠️',
+                patientInfo: 'Man, 63 jaar',
+                presentation: 'Acute palpitaties met thoracale druk, bekende ischemische cardiomyopathie.',
+                vitals: { hr: 172, bp: '108/66', spo2: 95, rr: 22 },
+                rhythm: 'vtach_monomorphic',
+                difficulty: 'hard',
+                duration: 12,
+                learningObjectives: [
+                    'Benader breedcomplex tachycardie primair als VT bij twijfel',
+                    'Kies veilig eerste behandelpad op basis van stabiliteit'
+                ],
+                debrief: 'Bij breedcomplex tachycardie en structurele hartziekte is VT het meest waarschijnlijk tot het tegendeel bewezen is.',
+                questions: [
+                    {
+                        type: 'differential',
+                        question: 'Welke diagnose is hier het meest waarschijnlijk?',
+                        options: ['SVT met aberrantie', 'Monomorfe ventriculaire tachycardie', 'Atriumflutter 2:1', 'Sinustachycardie met bundeltakblok'],
+                        correct: 1,
+                        explanation: 'Regelmatige breedcomplex tachycardie in deze klinische context moet als VT worden benaderd.',
+                        sourceId: 'esc_va_2022',
+                        guidelineRef: 'ESC VA 2022: brede-complex tachycardie als VT benaderen bij twijfel.'
+                    },
+                    {
+                        type: 'first_action',
+                        question: 'Wat is de eerste veilige behandelstrategie?',
+                        options: ['Adenosine standaard geven', 'Hemodynamische stabiliteit direct beoordelen en VT-pad volgen (anti-aritmicum of cardioversie)', 'Geen interventie starten', 'Alleen pijnstilling geven'],
+                        correct: 1,
+                        explanation: 'De eerste stap is stabiliteit beoordelen en vervolgens VT-management kiezen; bij instabiliteit direct gesynchroniseerde cardioversie.',
+                        sourceId: 'esc_va_2022',
+                        guidelineRef: 'ESC VA 2022: acute VT-aanpak op basis van stabiliteit.'
+                    }
+                ]
             }
         ],
 
@@ -8717,6 +9648,11 @@ a:hover { color: var(--primary-hover); }
             quiz.timeRemaining = quiz.mode === 'timed' ? this.getTimedSeconds() : 0;
             quiz.pendingConfidence = null;
             quiz.pendingAnswerIndex = null;
+            quiz.currentOptionIds = [];
+            quiz.currentAdaptiveProfile = null;
+            quiz.currentQuestionPayload = null;
+            quiz.questionType = 'recognition';
+            quiz.questionTypeMix = this.getQuestionTypeMix(quiz);
             
             // For survival mode, unlimited questions
             if (quiz.mode === 'survival') {
@@ -8728,6 +9664,15 @@ a:hover { color: var(--primary-hover); }
                 quiz.category = 'all';
                 quiz.examBlueprintQueue = this.buildExamBlueprintQueue(quiz.totalQuestions);
                 quiz.predefinedRhythms = [...quiz.examBlueprintQueue];
+            }
+            if (quiz.mode === 'critical') {
+                const criticalIds = ECGDatabase.getCriticalRhythms().map(r => r.id);
+                quiz.predefinedRhythms = (quiz.predefinedRhythms && quiz.predefinedRhythms.length)
+                    ? quiz.predefinedRhythms.filter(id => criticalIds.includes(id))
+                    : criticalIds;
+                quiz.totalQuestions = Math.max(1, Math.min(options.totalQuestions || 10, quiz.predefinedRhythms.length || 10));
+                quiz.difficulty = 'all';
+                quiz.category = 'all';
             }
             if (quiz.mode === 'recovery') {
                 quiz.totalQuestions = Math.min(10, quiz.predefinedRhythms.length || 10);
@@ -8795,21 +9740,431 @@ a:hover { color: var(--primary-hover); }
             return queue.slice(0, totalQuestions);
         },
 
+        getAdaptiveProfile(quiz) {
+            const moduleId = quiz?.moduleId || null;
+            const total = Math.max(1, quiz?.totalQuestions || 10);
+            const progress = ((quiz?.currentQuestion || 0) + 1) / total;
+
+            const base = {
+                levelLabel: 'Standaard',
+                allowedDifficulties: null,
+                distractorCount: 3,
+                forceHints: false,
+                showMorphologyGuide: false,
+                visual: {
+                    speed: 25,
+                    amplitude: 1,
+                    verticalScale: 1,
+                    lineWidth: 2,
+                    shadowBlur: 3,
+                    signalNoise: 0.01,
+                    baselineWander: 0.01
+                }
+            };
+
+            if (quiz?.mode === 'exam') {
+                return {
+                    ...base,
+                    levelLabel: 'Examen',
+                    forceHints: false,
+                    showMorphologyGuide: false,
+                    visual: {
+                        ...base.visual,
+                        verticalScale: 0.95,
+                        lineWidth: 1.8,
+                        signalNoise: 0.03,
+                        baselineWander: 0.02
+                    }
+                };
+            }
+
+            if (!moduleId) {
+                if (quiz?.difficulty === 'easy') {
+                    return {
+                        ...base,
+                        levelLabel: 'Basis',
+                        distractorCount: 2,
+                        forceHints: true,
+                        showMorphologyGuide: true,
+                        visual: {
+                            ...base.visual,
+                            verticalScale: 1.1,
+                            lineWidth: 2.6,
+                            signalNoise: 0,
+                            baselineWander: 0
+                        }
+                    };
+                }
+                if (quiz?.difficulty === 'hard') {
+                    return {
+                        ...base,
+                        levelLabel: 'Gevorderd',
+                        visual: {
+                            ...base.visual,
+                            verticalScale: 0.92,
+                            lineWidth: 1.9,
+                            signalNoise: 0.03,
+                            baselineWander: 0.02
+                        }
+                    };
+                }
+                return base;
+            }
+
+            const profileByModule = {
+                module_1: progress < 0.7
+                    ? {
+                        levelLabel: 'Module 1 - Basis',
+                        allowedDifficulties: ['easy'],
+                        distractorCount: 2,
+                        forceHints: true,
+                        showMorphologyGuide: true,
+                        visual: {
+                            ...base.visual,
+                            verticalScale: 1.2,
+                            lineWidth: 2.8,
+                            signalNoise: 0,
+                            baselineWander: 0
+                        }
+                    }
+                    : {
+                        levelLabel: 'Module 1 - Basis+',
+                        allowedDifficulties: ['easy', 'medium'],
+                        distractorCount: 2,
+                        forceHints: true,
+                        showMorphologyGuide: true,
+                        visual: {
+                            ...base.visual,
+                            verticalScale: 1.1,
+                            lineWidth: 2.6,
+                            signalNoise: 0.005,
+                            baselineWander: 0
+                        }
+                    },
+                module_2: {
+                    levelLabel: 'Module 2 - Intro Analyse',
+                    allowedDifficulties: ['easy', 'medium'],
+                    distractorCount: 3,
+                    forceHints: true,
+                    showMorphologyGuide: true,
+                    visual: {
+                        ...base.visual,
+                        verticalScale: 1.05,
+                        lineWidth: 2.4,
+                        signalNoise: 0.008,
+                        baselineWander: 0.005
+                    }
+                },
+                module_3: progress < 0.6
+                    ? {
+                        levelLabel: 'Module 3 - Opbouw',
+                        allowedDifficulties: ['medium'],
+                        distractorCount: 3,
+                        forceHints: false,
+                        showMorphologyGuide: false,
+                        visual: {
+                            ...base.visual,
+                            verticalScale: 1,
+                            signalNoise: 0.015,
+                            baselineWander: 0.01
+                        }
+                    }
+                    : {
+                        levelLabel: 'Module 3 - Uitdaging',
+                        allowedDifficulties: ['medium', 'hard'],
+                        distractorCount: 3,
+                        forceHints: false,
+                        showMorphologyGuide: false,
+                        visual: {
+                            ...base.visual,
+                            verticalScale: 0.95,
+                            lineWidth: 2,
+                            signalNoise: 0.02,
+                            baselineWander: 0.015
+                        }
+                    },
+                module_4: {
+                    levelLabel: 'Module 4 - Geleiding',
+                    allowedDifficulties: ['medium', 'hard'],
+                    distractorCount: 3,
+                    forceHints: false,
+                    showMorphologyGuide: false,
+                    visual: {
+                        ...base.visual,
+                        verticalScale: 0.95,
+                        lineWidth: 2,
+                        signalNoise: 0.02,
+                        baselineWander: 0.015
+                    }
+                },
+                module_5: {
+                    levelLabel: 'Module 5 - Spoed',
+                    allowedDifficulties: ['medium', 'hard'],
+                    distractorCount: 3,
+                    forceHints: false,
+                    showMorphologyGuide: false,
+                    visual: {
+                        ...base.visual,
+                        verticalScale: 0.92,
+                        lineWidth: 1.9,
+                        signalNoise: 0.025,
+                        baselineWander: 0.02
+                    }
+                },
+                module_6: {
+                    levelLabel: 'Module 6 - Ischemie',
+                    allowedDifficulties: ['medium', 'hard'],
+                    distractorCount: 3,
+                    forceHints: false,
+                    showMorphologyGuide: false,
+                    visual: {
+                        ...base.visual,
+                        verticalScale: 0.92,
+                        lineWidth: 1.9,
+                        signalNoise: 0.025,
+                        baselineWander: 0.02
+                    }
+                },
+                module_7: {
+                    levelLabel: 'Module 7 - Tox/Elektrolyt',
+                    allowedDifficulties: ['medium', 'hard'],
+                    distractorCount: 3,
+                    forceHints: false,
+                    showMorphologyGuide: false,
+                    visual: {
+                        ...base.visual,
+                        verticalScale: 0.9,
+                        lineWidth: 1.9,
+                        signalNoise: 0.03,
+                        baselineWander: 0.02
+                    }
+                },
+                module_8: {
+                    levelLabel: 'Module 8 - Integratie',
+                    allowedDifficulties: ['hard', 'medium'],
+                    distractorCount: 3,
+                    forceHints: false,
+                    showMorphologyGuide: false,
+                    visual: {
+                        ...base.visual,
+                        verticalScale: 0.88,
+                        lineWidth: 1.8,
+                        signalNoise: 0.035,
+                        baselineWander: 0.025
+                    }
+                }
+            };
+
+            return profileByModule[moduleId] || base;
+        },
+
+        getQuestionTypeMix(quiz) {
+            const fallback = { recognition: 0.5, differential: 0.3, first_action: 0.2 };
+            if (!quiz) return fallback;
+
+            if (quiz.mode === 'exam') return { recognition: 0.4, differential: 0.4, first_action: 0.2 };
+            if (quiz.mode === 'critical') return { recognition: 0.25, differential: 0.35, first_action: 0.4 };
+            if (quiz.mode === 'recovery') return { recognition: 0.35, differential: 0.4, first_action: 0.25 };
+
+            const moduleNum = parseInt((quiz.moduleId || '').replace('module_', ''), 10);
+            if (!Number.isNaN(moduleNum)) {
+                if (moduleNum <= 2) return { recognition: 0.7, differential: 0.2, first_action: 0.1 };
+                if (moduleNum <= 4) return { recognition: 0.5, differential: 0.35, first_action: 0.15 };
+                return { recognition: 0.3, differential: 0.4, first_action: 0.3 };
+            }
+
+            return quiz.questionTypeMix || fallback;
+        },
+
+        pickQuestionType(quiz, rhythm) {
+            const mix = this.getQuestionTypeMix(quiz);
+            const roll = Math.random();
+            const rec = Math.max(0, mix.recognition || 0);
+            const diff = Math.max(0, mix.differential || 0);
+            const thresholdDiff = rec + diff;
+
+            let type = roll < rec
+                ? 'recognition'
+                : roll < thresholdDiff
+                    ? 'differential'
+                    : 'first_action';
+
+            const hasDifferential = Array.isArray(rhythm?.differentialIds) && rhythm.differentialIds.length > 0;
+            const hasAction = typeof rhythm?.firstAction === 'string' && rhythm.firstAction.trim().length > 0;
+
+            if (type === 'differential' && !hasDifferential) type = 'recognition';
+            if (type === 'first_action' && !hasAction) type = hasDifferential ? 'differential' : 'recognition';
+
+            return type;
+        },
+
+        buildFirstActionOptions(rhythm, pool) {
+            const all = Array.isArray(pool) && pool.length ? pool : ECGDatabase.getAllRhythms();
+            const correctId = `action_${rhythm.id}`;
+            const options = [{
+                id: correctId,
+                label: rhythm.firstAction || 'Voer ABCDE uit en volg lokaal protocol',
+                description: rhythm.firstActionWhy || 'Eerste veilige stap op basis van ritmekenmerken en klinische context.',
+                rhythmId: rhythm.id
+            }];
+
+            const distractors = Utils.shuffle(
+                all
+                    .filter(r => r.id !== rhythm.id && typeof r.firstAction === 'string' && r.firstAction.trim().length > 0)
+                    .map(r => ({
+                        id: `action_${r.id}`,
+                        label: r.firstAction,
+                        description: r.firstActionWhy || 'Mogelijke actie in een andere ritmecontext.',
+                        rhythmId: r.id
+                    }))
+            );
+
+            const seenLabels = new Set(options.map(o => o.label.toLowerCase()));
+            for (const candidate of distractors) {
+                const key = (candidate.label || '').toLowerCase();
+                if (seenLabels.has(key)) continue;
+                seenLabels.add(key);
+                options.push(candidate);
+                if (options.length >= 4) break;
+            }
+
+            while (options.length < 4) {
+                options.push({
+                    id: `action_generic_${options.length}`,
+                    label: 'Alleen observeren en later herhalen',
+                    description: 'Deze keuze is meestal onveilig bij acute ritmestoornissen zonder aanvullende beoordeling.',
+                    rhythmId: 'generic'
+                });
+            }
+
+            return {
+                type: 'first_action',
+                prompt: `Wat is de eerste veilige stap bij ${rhythm.name}?`,
+                correctId,
+                options: Utils.shuffle(options).slice(0, 4)
+            };
+        },
+
+        buildQuestionPayload(quiz, rhythm, pool = []) {
+            if (!rhythm) return null;
+            const type = this.pickQuestionType(quiz, rhythm);
+
+            if (type === 'first_action') {
+                return this.buildFirstActionOptions(rhythm, pool);
+            }
+
+            const all = Array.isArray(pool) && pool.length ? pool : ECGDatabase.getAllRhythms();
+            const optionRhythms = [rhythm];
+
+            if (type === 'differential') {
+                const differential = [];
+                (rhythm.differentialIds || []).forEach(id => {
+                    const r = ECGDatabase.getRhythmById(id);
+                    if (r && r.id !== rhythm.id) differential.push(r);
+                });
+                if (differential.length < 3) {
+                    ECGDatabase.getDistractors(rhythm.id, 6)
+                        .filter(r => r.id !== rhythm.id)
+                        .forEach(r => differential.push(r));
+                }
+                optionRhythms.push(...Utils.shuffle(differential).slice(0, 3));
+            } else {
+                optionRhythms.push(
+                    ...ECGDatabase.getDistractors(rhythm.id, 6)
+                        .filter(r => r.id !== rhythm.id)
+                        .slice(0, 3)
+                );
+            }
+
+            const unique = [];
+            const seen = new Set();
+            optionRhythms.forEach(r => {
+                if (r && !seen.has(r.id)) {
+                    seen.add(r.id);
+                    unique.push(r);
+                }
+            });
+
+            return {
+                type,
+                prompt: type === 'differential'
+                    ? `Welk ritme past het best bij dit ECG (differentiaal)?`
+                    : 'Welk ritme zie je?',
+                correctId: rhythm.id,
+                options: Utils.shuffle(unique.slice(0, 4)).map(r => ({
+                    id: r.id,
+                    name: r.name,
+                    shortName: r.shortName,
+                    description: r.description,
+                    rhythmId: r.id
+                }))
+            };
+        },
+
         // Generate a new question
         generateQuestion() {
             const quiz = AppState.quiz;
+            const askedIds = quiz.answers.map(a => a.rhythmId);
+            const quality = AppState.quizQuality || {};
+            const repeatWindow = Math.max(1, parseInt(quality.repeatGuardWindow, 10) || 5);
+            const diversityWindow = Math.max(repeatWindow, parseInt(quality.diversityWindow, 10) || 10);
+            const maxCategoryShare = Math.max(0.1, Math.min(0.9, Number(quality.maxCategoryShare) || 0.4));
+            const recentIds = askedIds.slice(-repeatWindow);
+            const adaptive = this.getAdaptiveProfile(quiz);
+            quiz.currentAdaptiveProfile = adaptive;
             
             // Get rhythm based on settings
             const options = {
                 difficulty: quiz.difficulty,
                 category: quiz.category,
-                exclude: quiz.answers.map(a => a.rhythmId) // Don't repeat rhythms
+                exclude: askedIds // Prefer not to repeat rhythms
             };
             if (quiz.moduleId) {
                 options.moduleId = quiz.moduleId;
             }
 
+            const chooseBestCandidate = (pool) => {
+                if (!Array.isArray(pool) || pool.length === 0) return null;
+
+                const usageCount = {};
+                askedIds.forEach(id => {
+                    usageCount[id] = (usageCount[id] || 0) + 1;
+                });
+                const recentAnswers = (quiz.answers || []).slice(-diversityWindow);
+                const recentCategoryCount = {};
+                recentAnswers.forEach(ans => {
+                    const rhythm = ECGDatabase.getRhythmById(ans.rhythmId);
+                    if (!rhythm?.category) return;
+                    recentCategoryCount[rhythm.category] = (recentCategoryCount[rhythm.category] || 0) + 1;
+                });
+
+                const nonRecent = pool.filter(r => !recentIds.includes(r.id));
+                const unusedNonRecent = nonRecent.filter(r => !askedIds.includes(r.id));
+                const unusedAny = pool.filter(r => !askedIds.includes(r.id));
+
+                const candidates =
+                    unusedNonRecent.length > 0 ? unusedNonRecent :
+                    nonRecent.length > 0 ? nonRecent :
+                    unusedAny.length > 0 ? unusedAny :
+                    pool;
+
+                const maxCategoryCount = Math.max(1, Math.floor(diversityWindow * maxCategoryShare));
+                const categoryBalanced = candidates.filter(r => (recentCategoryCount[r.category] || 0) < maxCategoryCount);
+                const candidatePool = categoryBalanced.length > 0 ? categoryBalanced : candidates;
+
+                let minUsage = Infinity;
+                candidatePool.forEach(r => {
+                    const count = usageCount[r.id] || 0;
+                    if (count < minUsage) minUsage = count;
+                });
+
+                const leastUsed = candidatePool.filter(r => (usageCount[r.id] || 0) === minUsage);
+                return leastUsed[Math.floor(Math.random() * leastUsed.length)] || null;
+            };
+
             const predefinedId = quiz.predefinedRhythms?.[quiz.currentQuestion];
+            // Force refresh each question so we never accidentally reuse previous rhythm.
+            quiz.currentRhythm = null;
             if (predefinedId) {
                 const predefinedRhythm = ECGDatabase.getRhythmById(predefinedId);
                 if (predefinedRhythm) {
@@ -8818,15 +10173,27 @@ a:hover { color: var(--primary-hover); }
             }
 
             const getPool = () => {
-                let pool = quiz.moduleId
-                    ? LearningPathEngine.getModuleRhythms(quiz.moduleId)
-                    : ECGDatabase.getAllRhythms();
+                let pool = [];
+                if (quiz.mode === 'critical') {
+                    pool = ECGDatabase.getCriticalRhythms();
+                } else {
+                    pool = quiz.moduleId
+                        ? LearningPathEngine.getModuleRhythms(quiz.moduleId)
+                        : ECGDatabase.getAllRhythms();
+                }
 
                 if (quiz.category && quiz.category !== 'all') {
                     pool = pool.filter(r => r.category === quiz.category);
                 }
                 if (quiz.difficulty && quiz.difficulty !== 'all') {
                     pool = pool.filter(r => r.difficulty === quiz.difficulty);
+                }
+
+                if (Array.isArray(adaptive.allowedDifficulties) && adaptive.allowedDifficulties.length > 0) {
+                    const adaptivePool = pool.filter(r => adaptive.allowedDifficulties.includes(r.difficulty));
+                    if (adaptivePool.length > 0) {
+                        pool = adaptivePool;
+                    }
                 }
                 return pool;
             };
@@ -8835,11 +10202,24 @@ a:hover { color: var(--primary-hover); }
             if (!quiz.currentRhythm) {
                 const pool = getPool();
                 if (pool.length > 0) {
-                    const available = pool.filter(r => !options.exclude.includes(r.id));
-                    const source = available.length > 0 ? available : pool;
-                    quiz.currentRhythm = source[Math.floor(Math.random() * source.length)];
+                    quiz.currentRhythm = chooseBestCandidate(pool);
                 } else {
-                    quiz.currentRhythm = ECGDatabase.getRandomRhythm(options);
+                    if (quiz.mode === 'critical') {
+                        const criticalPool = ECGDatabase.getCriticalRhythms()
+                            .filter(r => !recentIds.includes(r.id));
+                        if (criticalPool.length > 0) {
+                            quiz.currentRhythm = criticalPool[Math.floor(Math.random() * criticalPool.length)];
+                        } else {
+                            quiz.currentRhythm = ECGDatabase.getCriticalRhythms()[0] || null;
+                        }
+                    } else {
+                        // Final fallback: avoid immediate repeats even when filters are empty.
+                        const fallback = ECGDatabase.getRandomRhythm({
+                            ...options,
+                            exclude: recentIds
+                        });
+                        quiz.currentRhythm = fallback || ECGDatabase.getRandomRhythm(options);
+                    }
                 }
             }
             
@@ -8848,6 +10228,15 @@ a:hover { color: var(--primary-hover); }
             quiz.showingFeedback = false;
             quiz.pendingConfidence = null;
             quiz.pendingAnswerIndex = null;
+            quiz.currentOptionIds = [];
+
+            const payloadPool = getPool();
+            quiz.currentQuestionPayload = this.buildQuestionPayload(quiz, quiz.currentRhythm, payloadPool);
+            quiz.questionType = quiz.currentQuestionPayload?.type || 'recognition';
+            quiz.questionTypeMix = this.getQuestionTypeMix(quiz);
+            if (Array.isArray(quiz.currentQuestionPayload?.options)) {
+                quiz.currentOptionIds = quiz.currentQuestionPayload.options.map(o => o.id);
+            }
             
             // Reset timer for timed mode
             if (quiz.mode === 'timed') {
@@ -8865,8 +10254,9 @@ a:hover { color: var(--primary-hover); }
             
             quiz.selectedAnswer = selectedRhythmId;
             quiz.showingFeedback = true;
-            
-            const isCorrect = selectedRhythmId === quiz.currentRhythm.id;
+
+            const correctAnswerId = quiz.currentQuestionPayload?.correctId || quiz.currentRhythm.id;
+            const isCorrect = selectedRhythmId === correctAnswerId;
             
             // Update score
             if (isCorrect) {
@@ -8890,10 +10280,14 @@ a:hover { color: var(--primary-hover); }
                 rhythmId: quiz.currentRhythm.id,
                 rhythmName: quiz.currentRhythm.name,
                 selectedId: selectedRhythmId,
+                correctId: correctAnswerId,
                 correct: isCorrect,
                 xpEarned,
                 mode: quiz.mode,
+                questionType: quiz.questionType || 'recognition',
+                questionPrompt: quiz.currentQuestionPayload?.prompt || 'Welk ritme zie je?',
                 confidence: null,
+                optionIds: Array.isArray(quiz.currentOptionIds) ? [...quiz.currentOptionIds] : [],
                 answeredAt: new Date().toISOString(),
                 timeSpent: quiz.mode === 'timed' ? (this.getTimedSeconds() - quiz.timeRemaining) : 0
             });
@@ -9039,6 +10433,13 @@ a:hover { color: var(--primary-hover); }
         getHint() {
             const rhythm = AppState.quiz.currentRhythm;
             if (!rhythm) return null;
+
+            if (AppState.quiz.questionType === 'first_action') {
+                const actionHints = [rhythm.firstActionWhy, rhythm.escalationCue].filter(Boolean);
+                if (actionHints.length > 0) {
+                    return actionHints[Math.floor(Math.random() * actionHints.length)];
+                }
+            }
             
             const hints = rhythm.quizHints || rhythm.ecgFeatures || [];
             if (hints.length === 0) return 'Geen hint beschikbaar';
@@ -9076,7 +10477,7 @@ a:hover { color: var(--primary-hover); }
         
         // ========== INITIALIZATION ==========
         init() {
-            console.log('🫀 ECG Trainer Pro v2.0 initializing...');
+            console.log('🫀 ECG Trainer Pro v2.2 initializing...');
             
             // Load saved data
             Storage.load();
@@ -9085,7 +10486,9 @@ a:hover { color: var(--primary-hover); }
             LearningPathEngine.syncState();
             MedicalContentAudit.ensureRhythmMetadata();
             MedicalContentAudit.ensureCaseQuestionSources();
-            AppState.learningAnalytics.lastReviewDate = new Date().toISOString().slice(0, 10);
+            if (!AppState.learningAnalytics.lastReviewDate) {
+                AppState.learningAnalytics.lastReviewDate = '2026-02-15';
+            }
             AppState.learningAnalytics.medicalCoverage = MedicalContentAudit.validateCoverage();
             
             // Initialize navigation
@@ -9093,6 +10496,9 @@ a:hover { color: var(--primary-hover); }
             
             // Update sidebar stats
             this.updateSidebarStats();
+
+            // Initial diagnostics snapshot for troubleshooting.
+            DiagnosticsEngine.runAll();
             
             // Setup keyboard shortcuts
             this.setupKeyboardShortcuts();
@@ -9126,9 +10532,144 @@ a:hover { color: var(--primary-hover); }
             if (profileEl) profileEl.textContent = AppState.profile?.name || 'Standaard';
         },
 
-        // ========== NAVIGATION ==========
+                // ========== NAVIGATION ==========
         navigateTo(section) {
             Navigation.navigateTo(section);
+        },
+
+        updateBreadcrumb(contextText = '') {
+            const breadcrumb = document.getElementById('pageBreadcrumb');
+            if (!breadcrumb) return;
+
+            const section = Navigation.sections[AppState.currentSection];
+            const sectionLabel = section?.title
+                ? section.title.replace(/^[^\s]+\s/, '')
+                : 'Dashboard';
+
+            const parts = ['Dashboard'];
+            if (AppState.currentSection !== 'dashboard') parts.push(sectionLabel);
+            if (contextText) parts.push(contextText);
+            breadcrumb.textContent = parts.join(' > ');
+        },
+
+        getContextHelpHTML(sectionId = AppState.currentSection) {
+            if (AppState.ui?.contextualHelp === false) return '';
+
+            const map = {
+                monitor: 'Monitor: kies lead (II/V1/V5), zet artifact aan/uit en gebruik Freeze om het spoor rustig te analyseren.',
+                quiz: 'Quiz: beoordeel eerst ritme, QRS-breedte en urgentie. Gebruik feedback om valkuilen actief te corrigeren.',
+                cases: 'Cases: prioriteer hemodynamische stabiliteit, benoem eerstvolgende veilige stap en wanneer je opschaalt.',
+                learningPath: 'Leerpad: als iets vergrendeld is zie je exact welke criteria nog ontbreken en hoeveel nog nodig is.'
+            };
+
+            const text = map[sectionId];
+            if (!text) return '';
+            return `<div class="context-help-card">💡 ${text}</div>`;
+        },
+
+        showLockReason({ target = 'actie', requirements = [] } = {}) {
+            const reqItems = Array.isArray(requirements) ? requirements : [];
+            const requirementList = reqItems.length
+                ? `<ul class="styled-list" style="margin-top:0.5rem;">${reqItems.map(item => `<li>${item}</li>`).join('')}</ul>`
+                : '<p class="text-muted" style="margin-top:0.5rem;">Voltooi eerst de vereiste stappen in het leerpad.</p>';
+
+            this.showModal('🔒 Nog niet beschikbaar', `
+                <div class="info-box warning">
+                    <div class="info-box-icon">🧭</div>
+                    <div class="info-box-content">
+                        <h4>${target}</h4>
+                        <p>Deze actie is nog vergrendeld. Rond eerst onderstaande criteria af:</p>
+                        ${requirementList}
+                    </div>
+                </div>
+            `);
+        },
+
+        completeOnboarding() {
+            AppState.ui.onboardingCompleted = true;
+            Storage.save();
+            if (AppState.currentSection === 'dashboard') {
+                Sections.renderDashboard(Utils.$('#contentArea'));
+            }
+        },
+
+        runDiagnostics() {
+            const { result, checks } = DiagnosticsEngine.runAll();
+            Storage.save();
+
+            const statusBadge = (ok, label) => ok
+                ? `<li>✅ ${label}</li>`
+                : `<li>❌ ${label}</li>`;
+
+            this.showModal('🧪 App-check Resultaat', `
+                <div class="info-box ${checks.binding.ok && checks.navigation.ok && checks.coverage.ok && checks.monitor.ok && checks.variation.ok ? 'success' : 'warning'}">
+                    <div class="info-box-icon">🧭</div>
+                    <div class="info-box-content">
+                        <h4>Laatste run: ${(result.lastRunAt || '').replace('T', ' ').slice(0, 19)}</h4>
+                        <p style="margin-top:0.35rem;">
+                            Score: <strong>${result.score || 0}</strong>/100 (${result.scoreBand || 'Onbekend'})
+                        </p>
+                        <ul class="styled-list" style="margin-top:0.5rem;">
+                            ${statusBadge(checks.binding.ok, 'Actie-bindings')}
+                            ${statusBadge(checks.navigation.ok, 'Navigatie-secties')}
+                            ${statusBadge(checks.coverage.ok, 'Medische brondekking')}
+                            ${statusBadge(checks.variation.ok, 'Quizvariatie')}
+                            ${statusBadge(checks.monitor.ok, 'Monitorinstellingen')}
+                        </ul>
+                    </div>
+                </div>
+                ${checks.binding.ok ? '' : `
+                    <div class="info-box danger" style="margin-top:0.75rem;">
+                        <div class="info-box-icon">⚠️</div>
+                        <div class="info-box-content">
+                            <h4>Bindings issues</h4>
+                            <ul class="styled-list">${result.bindingIssues.map(i => `<li>${i}</li>`).join('')}</ul>
+                        </div>
+                    </div>
+                `}
+                ${checks.navigation.ok ? '' : `
+                    <div class="info-box warning" style="margin-top:0.75rem;">
+                        <div class="info-box-icon">🧩</div>
+                        <div class="info-box-content">
+                            <h4>Navigatie issues</h4>
+                            <ul class="styled-list">${result.sectionIssues.map(i => `<li>${i}</li>`).join('')}</ul>
+                        </div>
+                    </div>
+                `}
+                ${checks.coverage.ok ? '' : `
+                    <div class="info-box warning" style="margin-top:0.75rem;">
+                        <div class="info-box-icon">📚</div>
+                        <div class="info-box-content">
+                            <h4>Brondekking issues</h4>
+                            <ul class="styled-list">
+                                <li>Ritmes zonder volledige dekking: ${checks.coverage.missingRhythm}</li>
+                                <li>Casevragen zonder volledige dekking: ${checks.coverage.missingQuestions}</li>
+                                <li>Ongeldige bron-URL's: ${checks.coverage.invalidUrls.length}</li>
+                            </ul>
+                        </div>
+                    </div>
+                `}
+                ${checks.monitor.ok ? '' : `
+                    <div class="info-box warning" style="margin-top:0.75rem;">
+                        <div class="info-box-icon">📺</div>
+                        <div class="info-box-content">
+                            <h4>Monitor issues</h4>
+                            <ul class="styled-list">${checks.monitor.issues.map(i => `<li>${i}</li>`).join('')}</ul>
+                        </div>
+                    </div>
+                `}
+                ${checks.variation.ok ? '' : `
+                    <div class="info-box info" style="margin-top:0.75rem;">
+                        <div class="info-box-icon">🎯</div>
+                        <div class="info-box-content">
+                            <h4>Quizvariatie advies</h4>
+                            <p>Unieke ritmes: ${checks.variation.uniqueRhythms}/${checks.variation.sampleAnswers} (gem. ${checks.variation.uniqueRatio}%).</p>
+                            <p>Min. unieke ratio per 20-vragenrun: ${checks.variation.minUniqueRatio || 0}% (doel: ${checks.variation.target || 75}%).</p>
+                            <p class="text-muted" style="margin-top:0.35rem;">Directe herhalingen: ${checks.variation.immediateRepeats}. Doe een nieuwe mixquiz of herstelronde om meer spreiding op te bouwen.</p>
+                        </div>
+                    </div>
+                `}
+            `);
         },
 
         // ========== QUIZ FUNCTIONS ==========
@@ -9141,6 +10682,45 @@ a:hover { color: var(--primary-hover); }
                 difficulty = 'all';
                 category = 'all';
                 count = 20;
+            }
+            if (mode === 'critical') {
+                difficulty = 'all';
+                category = 'all';
+                const criticalCount = ECGDatabase.getCriticalRhythms().length;
+                if (criticalCount === 0) {
+                    this.showModal('⚠️ Geen kritieke ritmes', `
+                        <div class="info-box warning">
+                            <div class="info-box-icon">ℹ️</div>
+                            <div class="info-box-content">
+                                <p>Er zijn op dit moment geen high/critical ritmes beschikbaar in de dataset.</p>
+                            </div>
+                        </div>
+                    `);
+                    return;
+                }
+                count = Math.max(1, Math.min(10, criticalCount || 10));
+            }
+
+            if (['standard', 'timed', 'clinical'].includes(mode)) {
+                let pool = ECGDatabase.getAllRhythms();
+                if (category !== 'all') {
+                    pool = pool.filter(r => r.category === category);
+                }
+                if (difficulty !== 'all') {
+                    pool = pool.filter(r => r.difficulty === difficulty);
+                }
+                if (pool.length > 0 && count > pool.length) {
+                    count = pool.length;
+                    this.showModal('ℹ️ Aantal vragen aangepast', `
+                        <div class="info-box info">
+                            <div class="info-box-icon">🧠</div>
+                            <div class="info-box-content">
+                                <p>Voor deze filters zijn <strong>${pool.length}</strong> unieke ritmes beschikbaar.</p>
+                                <p class="text-muted" style="margin-top:0.5rem;">De quiz is aangepast naar ${pool.length} vragen om herhaling te voorkomen.</p>
+                            </div>
+                        </div>
+                    `);
+                }
             }
             
             QuizEngine.init({
@@ -9200,58 +10780,49 @@ a:hover { color: var(--primary-hover); }
                 : null;
             if (!status.unlocked) {
                 const req = status.requirementsMet || {};
-                this.showModal('🔒 Module nog vergrendeld', `
-                    <div class="info-box warning">
-                        <div class="info-box-icon">🧭</div>
-                        <div class="info-box-content">
-                            <p>Rond eerst eerdere modules af om deze te ontgrendelen.</p>
-                            <p class="text-muted" style="margin-top:0.5rem;">Tip: voltooi eerst de vorige module en behaal daarna de doelscore.</p>
-                            <ul class="styled-list" style="margin-top:0.5rem;">
-                                <li>Vorige module voltooid: ${previousModule ? `${previousModule.completed ? '✅' : '❌'} ${previousModule.title}` : 'n.v.t.'}</li>
-                                <li>Quizdoel gehaald: ${req.qMet ? '✅' : '❌'}</li>
-                                <li>Checklist/case-eisen gehaald: ${(req.sMet !== false && req.cMet !== false) ? '✅' : '❌'}</li>
-                            </ul>
-                        </div>
-                    </div>
-                `);
+                this.showLockReason({
+                    target: `${status.title} is nog vergrendeld`,
+                    requirements: [
+                        `Vorige module voltooid: ${previousModule ? `${previousModule.completed ? '✅' : '❌'} ${previousModule.title}` : 'n.v.t.'}`,
+                        `Quizdoel gehaald: ${req.qMet ? '✅' : '❌'}`,
+                        `Checklist/case-eisen gehaald: ${(req.sMet !== false && req.cMet !== false) ? '✅' : '❌'}`
+                    ]
+                });
                 return;
             }
+
+            const modulePool = LearningPathEngine.getModuleRhythms(moduleId);
+            const desiredCount = AppState.settings?.defaultQuizCount || 10;
+            const questionCount = modulePool.length > 0
+                ? Math.min(desiredCount, modulePool.length)
+                : desiredCount;
 
             QuizEngine.init({
                 mode: 'standard',
                 difficulty: 'all',
                 category: 'all',
                 moduleId,
-                totalQuestions: AppState.settings?.defaultQuizCount || 10
+                totalQuestions: questionCount
             });
             Navigation.navigateTo('quiz');
         },
 
         showPrerequisiteHelp(type = 'general') {
             if (type === 'recovery') {
-                this.showModal('🩹 Herstelronde Nog Niet Beschikbaar', `
-                    <div class="info-box warning">
-                        <div class="info-box-icon">ℹ️</div>
-                        <div class="info-box-content">
-                            <p>Herstelronde wordt beschikbaar zodra je recente foutantwoorden hebt.</p>
-                            <ul class="styled-list" style="margin-top:0.5rem;">
-                                <li>Start eerst een standaard quiz of snelle quiz</li>
-                                <li>Maak minimaal 1 fout antwoord</li>
-                                <li>Open daarna opnieuw Herstelronde</li>
-                            </ul>
-                        </div>
-                    </div>
-                `);
+                this.showLockReason({
+                    target: 'Herstelronde nog niet beschikbaar',
+                    requirements: [
+                        'Start eerst een standaard quiz of snelle quiz',
+                        'Maak minimaal 1 fout antwoord',
+                        'Open daarna opnieuw Herstelronde'
+                    ]
+                });
                 return;
             }
-            this.showModal('ℹ️ Actie Nog Niet Beschikbaar', `
-                <div class="info-box info">
-                    <div class="info-box-icon">🧭</div>
-                    <div class="info-box-content">
-                        <p>Voltooi eerst de benodigde stappen in het leerpad.</p>
-                    </div>
-                </div>
-            `);
+            this.showLockReason({
+                target: 'Actie nog niet beschikbaar',
+                requirements: ['Voltooi eerst de benodigde stappen in het leerpad']
+            });
         },
 
         startCoachSession(mode = 'daily') {
@@ -9297,19 +10868,27 @@ a:hover { color: var(--primary-hover); }
         },
 
         startCriticalQuiz() {
-            // Focus on critical/high urgency rhythms
-            AppState.quiz.category = 'critical';
-            
-            QuizEngine.init({
-                mode: 'standard',
-                difficulty: 'all',
-                totalQuestions: 10
-            });
-            
-            // Override to use critical rhythms only
             const criticalRhythms = ECGDatabase.getCriticalRhythms();
-            AppState.quiz.currentRhythm = criticalRhythms[Math.floor(Math.random() * criticalRhythms.length)];
-            
+            if (!criticalRhythms.length) {
+                this.showModal('⚠️ Geen kritieke ritmes gevonden', `
+                    <div class="info-box warning">
+                        <div class="info-box-icon">ℹ️</div>
+                        <div class="info-box-content">
+                            <p>Er zijn geen kritieke ritmes beschikbaar in de huidige dataset.</p>
+                        </div>
+                    </div>
+                `);
+                return;
+            }
+
+            const queue = Utils.shuffle(criticalRhythms.map(r => r.id));
+            QuizEngine.init({
+                mode: 'critical',
+                difficulty: 'all',
+                category: 'all',
+                totalQuestions: Math.min(10, queue.length),
+                predefinedRhythms: queue
+            });
             Navigation.navigateTo('quiz');
         },
 
@@ -9347,7 +10926,10 @@ a:hover { color: var(--primary-hover); }
         showAnswerFeedback(result) {
             const { isCorrect, correctRhythm, xpEarned } = result;
             const quiz = AppState.quiz;
+            const payload = quiz.currentQuestionPayload || {};
+            const correctAnswerId = payload.correctId || correctRhythm.id;
             const selectedRhythm = ECGDatabase.getRhythmById(quiz.selectedAnswer);
+            const selectedOption = (payload.options || []).find(o => o.id === quiz.selectedAnswer);
             const whyCorrect = correctRhythm.whyCorrect || MedicalContentAudit.buildWhyCorrect(correctRhythm);
             const source = MedicalContentAudit.getSource(correctRhythm.sourceId);
             const guidelineRef = MedicalContentAudit.getGuidelineReferenceForRhythm(correctRhythm);
@@ -9357,9 +10939,9 @@ a:hover { color: var(--primary-hover); }
             Utils.$$('.quiz-option').forEach(opt => {
                 opt.classList.add('disabled');
                 
-                if (opt.dataset.rhythm === correctRhythm.id) {
+                if (opt.dataset.answer === correctAnswerId) {
                     opt.classList.add('correct');
-                } else if (opt.dataset.rhythm === quiz.selectedAnswer && !isCorrect) {
+                } else if (opt.dataset.answer === quiz.selectedAnswer && !isCorrect) {
                     opt.classList.add('incorrect');
                 }
             });
@@ -9407,13 +10989,13 @@ a:hover { color: var(--primary-hover); }
                                 <p class="text-muted" style="margin-top: 0.35rem;">${correctRhythm.sourceNote || 'ERC/ESC default; volg lokaal protocol.'}</p>
                             </div>
                         </div>
-                        ${!isCorrect && selectedRhythm ? `
+                        ${!isCorrect ? `
                             <div class="info-box warning" style="margin-top: 0.75rem;">
                                 <div class="info-box-icon">🧭</div>
                                 <div class="info-box-content">
                                     <h4>Context Card: verschil met je keuze</h4>
                                     <ul class="styled-list" style="margin-top: 0.5rem;">
-                                        <li><strong>Jouw keuze:</strong> ${selectedRhythm.name}</li>
+                                        <li><strong>Jouw keuze:</strong> ${selectedRhythm?.name || selectedOption?.label || 'Onbekend'}</li>
                                         <li><strong>Correct:</strong> ${correctRhythm.name}</li>
                                         <li><strong>Belangrijk verschil:</strong> ${(correctRhythm.ecgFeatures?.[0] || 'Let op ritme, QRS-breedte en P-golven')}</li>
                                         ${correctRhythm.urgency === 'critical' || correctRhythm.urgency === 'high'
@@ -9498,7 +11080,7 @@ a:hover { color: var(--primary-hover); }
             // Update option styling
             Utils.$$('.quiz-option').forEach(opt => {
                 opt.classList.add('disabled');
-                if (opt.dataset.rhythm === correctRhythm.id) {
+                if (opt.dataset.answer === (quiz.currentQuestionPayload?.correctId || correctRhythm.id)) {
                     opt.classList.add('correct');
                 }
             });
@@ -9763,6 +11345,15 @@ a:hover { color: var(--primary-hover); }
                             <tbody>
                                 ${answers.map((answer, index) => {
                                     const selectedRhythm = ECGDatabase.getRhythmById(answer.selectedId);
+                                    const selectedActionRhythmId = typeof answer.selectedId === 'string' && answer.selectedId.startsWith('action_')
+                                        ? answer.selectedId.replace('action_', '')
+                                        : null;
+                                    const selectedActionRhythm = selectedActionRhythmId ? ECGDatabase.getRhythmById(selectedActionRhythmId) : null;
+                                    const selectedLabel = answer.selectedId === 'timeout'
+                                        ? 'Tijd op'
+                                        : selectedRhythm
+                                            ? selectedRhythm.name
+                                            : selectedActionRhythm?.firstAction || answer.selectedId || 'Onbekend';
                                     return `
                                         <tr>
                                             <td>${index + 1}</td>
@@ -9772,7 +11363,7 @@ a:hover { color: var(--primary-hover); }
                                                     ${answer.rhythmName}
                                                 </span>
                                             </td>
-                                            <td>${selectedRhythm ? selectedRhythm.name : 'Tijd op'}</td>
+                                            <td>${selectedLabel}</td>
                                             <td>
                                                 ${answer.correct 
                                                     ? '<span class="text-success">✓ Correct</span>' 
@@ -9790,13 +11381,56 @@ a:hover { color: var(--primary-hover); }
         },
 
         // ========== MONITOR FUNCTIONS ==========
+        getMonitorRenderOptions() {
+            const presets = {
+                none: { signalNoise: 0, baselineWander: 0 },
+                low: { signalNoise: 0.01, baselineWander: 0.006 },
+                medium: { signalNoise: 0.02, baselineWander: 0.014 }
+            };
+            const level = AppState.monitor.artifactLevel || 'none';
+            return presets[level] || presets.none;
+        },
+
+        refreshMonitorStaticStrip() {
+            const renderOptions = this.getMonitorRenderOptions();
+            ECGRenderer.drawStaticStrip('monitorCanvas', AppState.monitor.currentRhythm, {
+                heartRate: AppState.monitor.heartRate,
+                speed: AppState.monitor.speed || 25,
+                amplitude: AppState.monitor.amplitude || 1,
+                lead: AppState.monitor.lead || 'II',
+                signalNoise: renderOptions.signalNoise,
+                baselineWander: renderOptions.baselineWander,
+                showIntervalsOverlay: AppState.monitor.showIntervalsOverlay
+            });
+        },
+
         toggleMonitor() {
             const monitor = AppState.monitor;
+            const renderOptions = this.getMonitorRenderOptions();
             
             if (monitor.isRunning) {
                 ECGRenderer.stop('monitorCanvas');
                 monitor.isRunning = false;
+                monitor.freezeFrame = false;
             } else {
+                let config = ECGRenderer.activeCanvases.get('monitorCanvas');
+                if (!config) {
+                    config = ECGRenderer.initCanvas('monitorCanvas', {
+                        rhythm: AppState.monitor.currentRhythm,
+                        heartRate: AppState.monitor.heartRate,
+                        speed: AppState.monitor.speed || 25,
+                        amplitude: AppState.monitor.amplitude || 1,
+                        lead: AppState.monitor.lead || 'II',
+                        signalNoise: renderOptions.signalNoise,
+                        baselineWander: renderOptions.baselineWander,
+                        showIntervalsOverlay: AppState.monitor.showIntervalsOverlay
+                    });
+                }
+                if (!config) return;
+                config.lead = AppState.monitor.lead || 'II';
+                config.signalNoise = renderOptions.signalNoise;
+                config.baselineWander = renderOptions.baselineWander;
+                config.showIntervalsOverlay = AppState.monitor.showIntervalsOverlay;
                 ECGRenderer.start('monitorCanvas');
                 monitor.isRunning = true;
             }
@@ -9806,6 +11440,76 @@ a:hover { color: var(--primary-hover); }
             if (btn) {
                 btn.className = `btn btn-sm ${monitor.isRunning ? 'btn-danger' : 'btn-success'}`;
                 btn.innerHTML = monitor.isRunning ? '⏸ Pauze' : '▶ Start';
+            }
+        },
+
+        toggleMonitorFreeze() {
+            AppState.monitor.freezeFrame = !AppState.monitor.freezeFrame;
+            const config = ECGRenderer.activeCanvases.get('monitorCanvas');
+            if (!config) {
+                if (AppState.currentSection === 'monitor') Sections.renderMonitor(Utils.$('#contentArea'));
+                return;
+            }
+
+            if (AppState.monitor.freezeFrame) {
+                ECGRenderer.stop('monitorCanvas');
+            } else if (AppState.monitor.isRunning) {
+                ECGRenderer.start('monitorCanvas');
+            }
+            if (AppState.currentSection === 'monitor') {
+                Sections.renderMonitor(Utils.$('#contentArea'));
+            }
+        },
+
+        toggleMonitorOverlay() {
+            AppState.monitor.showIntervalsOverlay = !AppState.monitor.showIntervalsOverlay;
+            const config = ECGRenderer.activeCanvases.get('monitorCanvas');
+            if (config) {
+                config.showIntervalsOverlay = AppState.monitor.showIntervalsOverlay;
+            }
+            if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
+                this.refreshMonitorStaticStrip();
+            }
+            if (AppState.currentSection === 'monitor') {
+                Sections.renderMonitor(Utils.$('#contentArea'));
+            }
+        },
+
+        setMonitorLead(lead = 'II') {
+            const allowed = ['II', 'V1', 'V5'];
+            if (!allowed.includes(lead)) return;
+            AppState.monitor.lead = lead;
+
+            const config = ECGRenderer.activeCanvases.get('monitorCanvas');
+            if (config) {
+                config.lead = lead;
+                ECGRenderer.resetSweep('monitorCanvas');
+            }
+            if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
+                this.refreshMonitorStaticStrip();
+            }
+            if (AppState.currentSection === 'monitor') {
+                Sections.renderMonitor(Utils.$('#contentArea'));
+            }
+        },
+
+        setMonitorArtifact(level = 'none') {
+            const allowed = ['none', 'low', 'medium'];
+            if (!allowed.includes(level)) return;
+            AppState.monitor.artifactLevel = level;
+            const renderOptions = this.getMonitorRenderOptions();
+
+            const config = ECGRenderer.activeCanvases.get('monitorCanvas');
+            if (config) {
+                config.signalNoise = renderOptions.signalNoise;
+                config.baselineWander = renderOptions.baselineWander;
+                ECGRenderer.resetSweep('monitorCanvas');
+            }
+            if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
+                this.refreshMonitorStaticStrip();
+            }
+            if (AppState.currentSection === 'monitor') {
+                Sections.renderMonitor(Utils.$('#contentArea'));
             }
         },
 
@@ -9826,7 +11530,29 @@ a:hover { color: var(--primary-hover); }
             }
             
             // Update renderer
-            ECGRenderer.setRhythm('monitorCanvas', rhythmId, AppState.monitor.heartRate);
+            const renderOptions = this.getMonitorRenderOptions();
+            let config = ECGRenderer.activeCanvases.get('monitorCanvas');
+            if (!config) {
+                config = ECGRenderer.initCanvas('monitorCanvas', {
+                    rhythm: rhythmId,
+                    heartRate: AppState.monitor.heartRate,
+                    speed: AppState.monitor.speed || 25,
+                    amplitude: AppState.monitor.amplitude || 1,
+                    lead: AppState.monitor.lead || 'II',
+                    signalNoise: renderOptions.signalNoise,
+                    baselineWander: renderOptions.baselineWander,
+                    showIntervalsOverlay: AppState.monitor.showIntervalsOverlay
+                });
+            }
+            if (config) {
+                config.speed = AppState.monitor.speed || config.speed || 25;
+                config.amplitude = AppState.monitor.amplitude || config.amplitude || 1;
+                config.lead = AppState.monitor.lead || 'II';
+                config.signalNoise = renderOptions.signalNoise;
+                config.baselineWander = renderOptions.baselineWander;
+                config.showIntervalsOverlay = AppState.monitor.showIntervalsOverlay;
+                ECGRenderer.setRhythm('monitorCanvas', rhythmId, AppState.monitor.heartRate);
+            }
             
             // Update display HR
             const monitorHR = document.getElementById('monitorHR');
@@ -9848,11 +11574,16 @@ a:hover { color: var(--primary-hover); }
             
             // Update active button
             Utils.$$('.rhythm-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.onclick.toString().includes(rhythmId));
+                btn.classList.toggle('active', btn.dataset.rhythmId === rhythmId);
             });
 
             // Update rhythm info card in-place to avoid re-render race conditions.
             this.updateMonitorInfoPanel(rhythm);
+
+            // Show the selected morphology immediately when paused.
+            if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
+                this.refreshMonitorStaticStrip();
+            }
         },
 
         updateMonitorInfoPanel(rhythm) {
@@ -9888,7 +11619,7 @@ a:hover { color: var(--primary-hover); }
         },
 
         setMonitorHR(value) {
-            AppState.monitor.heartRate = parseInt(value);
+            AppState.monitor.heartRate = parseInt(value, 10);
             
             const hrValue = document.getElementById('hrValue');
             if (hrValue) hrValue.textContent = value;
@@ -9900,6 +11631,9 @@ a:hover { color: var(--primary-hover); }
             const config = ECGRenderer.activeCanvases.get('monitorCanvas');
             if (config) {
                 config.heartRate = AppState.monitor.heartRate;
+                if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
+                    this.refreshMonitorStaticStrip();
+                }
             }
         },
 
@@ -10159,6 +11893,18 @@ a:hover { color: var(--primary-hover); }
                         </div>
                     </div>
                 </div>
+
+                ${Array.isArray(caseData.learningObjectives) && caseData.learningObjectives.length ? `
+                    <div class="info-box info mb-2">
+                        <div class="info-box-icon">🎯</div>
+                        <div class="info-box-content">
+                            <h4>Leerdoelen</h4>
+                            <ul class="styled-list" style="margin-top:0.35rem;">
+                                ${caseData.learningObjectives.map(item => `<li>${item}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                ` : ''}
                 
                 <!-- ECG Monitor -->
                 <div class="ecg-monitor mb-2">
@@ -10178,6 +11924,7 @@ a:hover { color: var(--primary-hover); }
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">❓ Vraag ${caseData.currentQuestion + 1} van ${caseData.questions.length}</h3>
+                        <span class="badge badge-info">${(question.type || 'recognition').replace('_', ' ')}</span>
                     </div>
                     <div class="card-body">
                         <p style="font-size: 1.1rem; margin-bottom: 1.5rem;"><strong>${question.question}</strong></p>
@@ -10206,6 +11953,7 @@ a:hover { color: var(--primary-hover); }
                     </div>
                 </div>
             `;
+            this.updateBreadcrumb(`Cases > Vraag ${caseData.currentQuestion + 1}/${caseData.questions.length}`);
             
             // Draw ECG
             setTimeout(() => {
@@ -10335,6 +12083,15 @@ a:hover { color: var(--primary-hover); }
                                     <div class="vital-card-value text-primary">${accuracy}%</div>
                                 </div>
                             </div>
+                            ${caseData.debrief ? `
+                                <div class="info-box info mb-3" style="max-width:700px; margin:0 auto 1.25rem;">
+                                    <div class="info-box-icon">🧠</div>
+                                    <div class="info-box-content">
+                                        <h4>Debrief</h4>
+                                        <p>${caseData.debrief}</p>
+                                    </div>
+                                </div>
+                            ` : ''}
                             <div class="btn-group" style="justify-content: center;">
                                 <button class="btn btn-primary" onclick="Navigation.navigateTo('cases')">
                                     📋 Meer Cases
@@ -10347,6 +12104,7 @@ a:hover { color: var(--primary-hover); }
                     </div>
                 </div>
             `;
+            this.updateBreadcrumb('Cases > Resultaat');
             
             // Clear current case
             if (caseData.id) {
@@ -10454,8 +12212,8 @@ a:hover { color: var(--primary-hover); }
                         const index = key.charCodeAt(0) - 65;
                         const options = Utils.$$('.quiz-option');
                         if (options[index]) {
-                            const rhythmId = options[index].dataset.rhythm;
-                            if (rhythmId) this.selectAnswer(rhythmId);
+                            const answerId = options[index].dataset.answer;
+                            if (answerId) this.selectAnswer(answerId);
                         }
                     }
                 }
@@ -10515,6 +12273,59 @@ a:hover { color: var(--primary-hover); }
             if (AppState.currentSection === 'systematic') {
                 Sections.renderSystematic(Utils.$('#contentArea'));
             }
+        },
+
+        openSystematicDrill(drillType = 'rate') {
+            const drills = {
+                rate: {
+                    title: 'Frequentie drill',
+                    task: 'Gebruik 25 mm/s: bij 4 grote hokjes tussen R-toppen, wat is de hartfrequentie?',
+                    answer: '300 / 4 = 75 bpm',
+                    tip: 'Gebruik eerst de 300-regel, daarna check je of het ritme regelmatig is.'
+                },
+                rhythm: {
+                    title: 'Ritme drill',
+                    task: 'Noem 3 vragen die je altijd stelt voor ritmeanalyse.',
+                    answer: '1) Regelmatig? 2) P voor elk QRS? 3) Constante P-QRS relatie?',
+                    tip: 'Ritmeregelmaat en AV-relatie geven vaak direct de differentiaalrichting.'
+                },
+                conduction: {
+                    title: 'Geleiding drill',
+                    task: 'Welke grenswaarden gebruik je voor PR en QRS?',
+                    answer: 'PR 120-200 ms; QRS < 120 ms',
+                    tip: 'Bij brede QRS en tachycardie: behandel als VT tot tegendeel bewezen.'
+                },
+                ischemia: {
+                    title: 'ST/T drill',
+                    task: 'Noem 2 rode vlaggen voor acute ischemie op ECG.',
+                    answer: 'Territoriale ST-elevatie met reciproque veranderingen; STEMI-equivalenten zoals de Winter.',
+                    tip: 'Gebruik altijd klinische context en escaleer bij hoog-risico patroon.'
+                }
+            };
+            const drill = drills[drillType] || drills.rate;
+            this.showModal(`🧩 ${drill.title}`, `
+                <div class="info-box info">
+                    <div class="info-box-icon">📝</div>
+                    <div class="info-box-content">
+                        <h4>Opdracht</h4>
+                        <p>${drill.task}</p>
+                    </div>
+                </div>
+                <div class="info-box success" style="margin-top:0.75rem;">
+                    <div class="info-box-icon">✅</div>
+                    <div class="info-box-content">
+                        <h4>Modelantwoord</h4>
+                        <p>${drill.answer}</p>
+                    </div>
+                </div>
+                <div class="info-box warning" style="margin-top:0.75rem;">
+                    <div class="info-box-icon">💡</div>
+                    <div class="info-box-content">
+                        <h4>Tip</h4>
+                        <p>${drill.tip}</p>
+                    </div>
+                </div>
+            `);
         },
 
         resetProgress() {
@@ -11126,7 +12937,22 @@ a:hover { color: var(--primary-hover); }
                 title: 'Module 8: Integratie',
                 description: 'Klinische cases met prioritering en tijdsdruk.',
                 allRhythms: true,
-                caseIds: ['case_chest_pain', 'case_syncope', 'case_palpitations', 'case_resuscitation', 'case_potassium', 'case_af_rvr'],
+                caseIds: [
+                    'case_chest_pain',
+                    'case_syncope',
+                    'case_palpitations',
+                    'case_resuscitation',
+                    'case_potassium',
+                    'case_af_rvr',
+                    'case_post_arrest_stemi',
+                    'case_sepsis_tachyarrhythmia',
+                    'case_intox_qt',
+                    'case_hypokalemia_qt',
+                    'case_pacemaker_failure',
+                    'case_dewinter_acs',
+                    'case_unstable_brady',
+                    'case_wide_complex_tachy'
+                ],
                 requiredQuestions: 15,
                 requiredAccuracy: 80,
                 requiredCases: 4
@@ -11135,6 +12961,52 @@ a:hover { color: var(--primary-hover); }
 
         getModuleById(moduleId) {
             return this.moduleDefinitions.find(m => m.id === moduleId) || null;
+        },
+
+        getModulePitfalls(moduleId) {
+            const map = {
+                module_1: [
+                    'Kalibratie/snelheid niet eerst controleren',
+                    'Hartfrequentie op het oog schatten zonder methode',
+                    'Regelmaat niet objectief beoordelen'
+                ],
+                module_2: [
+                    'Stappen overslaan in de checklist',
+                    'QRS/PR wel noemen maar niet kwantificeren',
+                    'QTc niet in context van ritme/frequentie plaatsen'
+                ],
+                module_3: [
+                    'AF en flutter door elkaar halen',
+                    'SVT meteen medicamenteus behandelen zonder vagale stap',
+                    'Instabiliteit niet eerst uitsluiten'
+                ],
+                module_4: [
+                    'Mobitz II onderschatten als laag-risico',
+                    'LBBB absoluut als STEMI diagnosticeren',
+                    'AV-dissociatie missen'
+                ],
+                module_5: [
+                    'Brede tachy niet primair als VT benaderen',
+                    'Defibrillatie/cardioversie vertragen',
+                    'Niet-schokbaar ritme toch schokken'
+                ],
+                module_6: [
+                    'STEMI-equivalenten (de Winter/posterior) missen',
+                    'Reciproke veranderingen niet meenemen',
+                    'Reperfusiepad uitstellen door extra tests'
+                ],
+                module_7: [
+                    'Elektrolytstoornissen niet koppelen aan ECG',
+                    'QT-risico onderschatten bij intoxicatie',
+                    'Pacemakerdysfunctie niet herkennen'
+                ],
+                module_8: [
+                    'Diagnose wel goed, eerste stap te laat',
+                    'Urgentie-inschatting los van hemodynamiek',
+                    'Geen expliciet escalatiemoment benoemen'
+                ]
+            };
+            return map[moduleId] || [];
         },
 
         getModuleRhythms(moduleId) {
@@ -11658,7 +13530,223 @@ a:hover { color: var(--primary-hover); }
             this.ensureState();
             AppState.learningAnalytics.rolling14d = this.computeRolling14d();
             AppState.learningAnalytics.riskFlags = this.getRiskFlags();
-            AppState.learningAnalytics.lastReviewDate = new Date().toISOString().slice(0, 10);
+        }
+    };
+
+    const DiagnosticsEngine = {
+        runBindingsCheck() {
+            const requiredMethods = [
+                'startQuickQuiz', 'startCriticalQuiz', 'startQuiz', 'startModulePractice',
+                'startCoachSession', 'showPrerequisiteHelp', 'toggleMonitor', 'toggleMonitorFreeze',
+                'toggleMonitorOverlay', 'setMonitorRhythm', 'setMonitorLead', 'setMonitorArtifact',
+                'openSystematicDrill',
+                'showRhythmDetail', 'startCase', 'selectCaseAnswer', 'nextCaseQuestion',
+                'switchACLSTab', 'switchDrugTab', 'switchCriteriaTab', 'runDiagnostics'
+            ];
+            const missingMethods = requiredMethods.filter(name => typeof ECGApp[name] !== 'function');
+
+            const invalidOnclick = [];
+            Utils.$$('[onclick]').forEach((node, index) => {
+                const handler = node.getAttribute('onclick') || '';
+                const matches = [...handler.matchAll(/ECGApp\.([A-Za-z0-9_]+)/g)];
+                matches.forEach(match => {
+                    const method = match[1];
+                    if (typeof ECGApp[method] !== 'function') {
+                        const anchor = `${node.tagName.toLowerCase()}${node.id ? `#${node.id}` : `@${index}`}`;
+                        invalidOnclick.push(`${method} (${anchor})`);
+                    }
+                });
+            });
+
+            return {
+                ok: missingMethods.length === 0 && invalidOnclick.length === 0,
+                missingMethods,
+                invalidOnclick
+            };
+        },
+
+        runNavigationCheck() {
+            const missingSections = [];
+            const navSections = [];
+            Utils.$$('.nav-item[data-section]').forEach(item => {
+                const sectionId = item.dataset.section;
+                navSections.push(sectionId);
+                if (!Navigation.sections[sectionId]) {
+                    missingSections.push(sectionId);
+                }
+            });
+
+            const unlinkedSections = Object.keys(Navigation.sections)
+                .filter(id => !navSections.includes(id));
+
+            return {
+                ok: missingSections.length === 0 && unlinkedSections.length === 0,
+                missingSections,
+                unlinkedSections
+            };
+        },
+
+        runMedicalCoverageCheck() {
+            const coverage = MedicalContentAudit.validateCoverage();
+            const sourceCoverageOk = coverage.missingRhythm === 0 && coverage.missingQuestions === 0 && coverage.invalidUrls.length === 0;
+            return {
+                ok: sourceCoverageOk,
+                ...coverage
+            };
+        },
+
+        runQuizVariationCheck() {
+            const allRhythms = ECGDatabase.getAllRhythms();
+            const quality = AppState.quizQuality || {};
+            const repeatWindow = Math.max(1, parseInt(quality.repeatGuardWindow, 10) || 5);
+            const diversityWindow = Math.max(repeatWindow, parseInt(quality.diversityWindow, 10) || 10);
+            const maxCategoryShare = Math.max(0.1, Math.min(0.9, Number(quality.maxCategoryShare) || 0.4));
+            const minUniqueTarget = Math.round((Number(quality.minUniqueRatioTarget) || 0.75) * 100);
+            const runs = 10;
+            const questionsPerRun = 20;
+
+            if (!allRhythms.length) {
+                return {
+                    ok: false,
+                    sampleAnswers: 0,
+                    uniqueRhythms: 0,
+                    uniqueRatio: 0,
+                    immediateRepeats: 0,
+                    minUniqueRatio: 0,
+                    target: minUniqueTarget
+                };
+            }
+
+            let immediateRepeats = 0;
+            const allAsked = [];
+            const runRatios = [];
+
+            for (let run = 0; run < runs; run++) {
+                const asked = [];
+                const usage = {};
+
+                for (let i = 0; i < questionsPerRun; i++) {
+                    const recentIds = asked.slice(-repeatWindow);
+                    let candidates = allRhythms.filter(r => !recentIds.includes(r.id));
+                    if (!candidates.length) candidates = [...allRhythms];
+
+                    const recentWindowIds = asked.slice(-diversityWindow);
+                    const categoryCounts = {};
+                    recentWindowIds.forEach(id => {
+                        const rhythm = ECGDatabase.getRhythmById(id);
+                        if (!rhythm?.category) return;
+                        categoryCounts[rhythm.category] = (categoryCounts[rhythm.category] || 0) + 1;
+                    });
+                    const maxCategoryCount = Math.max(1, Math.floor(diversityWindow * maxCategoryShare));
+                    const balanced = candidates.filter(r => (categoryCounts[r.category] || 0) < maxCategoryCount);
+                    if (balanced.length) candidates = balanced;
+
+                    let minUsage = Infinity;
+                    candidates.forEach(c => {
+                        const count = usage[c.id] || 0;
+                        if (count < minUsage) minUsage = count;
+                    });
+                    const leastUsed = candidates.filter(c => (usage[c.id] || 0) === minUsage);
+                    const pickPool = leastUsed.length ? leastUsed : candidates;
+                    const chosen = pickPool[Math.floor(Math.random() * pickPool.length)];
+                    if (!chosen) continue;
+
+                    asked.push(chosen.id);
+                    allAsked.push(chosen.id);
+                    usage[chosen.id] = (usage[chosen.id] || 0) + 1;
+
+                    if (asked.length > 1 && asked[asked.length - 1] === asked[asked.length - 2]) {
+                        immediateRepeats++;
+                    }
+                }
+
+                const runUnique = new Set(asked).size;
+                runRatios.push(asked.length ? Math.round((runUnique / asked.length) * 100) : 0);
+            }
+
+            const unique = new Set(allAsked);
+            const uniqueRatio = runRatios.length
+                ? Math.round(runRatios.reduce((sum, ratio) => sum + ratio, 0) / runRatios.length)
+                : 0;
+            const minUniqueRatio = runRatios.length ? Math.min(...runRatios) : 0;
+
+            return {
+                ok: immediateRepeats === 0 && minUniqueRatio >= minUniqueTarget,
+                sampleAnswers: allAsked.length,
+                uniqueRhythms: unique.size,
+                uniqueRatio,
+                minUniqueRatio,
+                target: minUniqueTarget,
+                immediateRepeats
+            };
+        },
+
+        runMonitorSanityCheck() {
+            const issues = [];
+            const allowedSpeed = [12.5, 25, 50];
+            const allowedAmp = [0.5, 1, 2];
+            const allowedLead = ['II', 'V1', 'V5'];
+            const allowedArtifact = ['none', 'low', 'medium'];
+            if (!allowedSpeed.includes(Number(AppState.monitor.speed))) {
+                issues.push(`Onverwachte snelheid: ${AppState.monitor.speed}`);
+            }
+            if (!allowedAmp.includes(Number(AppState.monitor.amplitude))) {
+                issues.push(`Onverwachte gain: ${AppState.monitor.amplitude}`);
+            }
+            if (!allowedLead.includes(AppState.monitor.lead || 'II')) {
+                issues.push(`Onverwachte lead: ${AppState.monitor.lead}`);
+            }
+            if (!allowedArtifact.includes(AppState.monitor.artifactLevel || 'none')) {
+                issues.push(`Onverwacht artifactniveau: ${AppState.monitor.artifactLevel}`);
+            }
+            if (typeof AppState.monitor.showIntervalsOverlay !== 'boolean') {
+                issues.push('showIntervalsOverlay moet boolean zijn.');
+            }
+            if (typeof AppState.monitor.freezeFrame !== 'boolean') {
+                issues.push('freezeFrame moet boolean zijn.');
+            }
+            if (!ECGDatabase.getRhythmById(AppState.monitor.currentRhythm)) {
+                issues.push(`Onbekend monitorritme: ${AppState.monitor.currentRhythm}`);
+            }
+            if (AppState.currentSection !== 'monitor' && ECGRenderer.activeCanvases.has('monitorCanvas')) {
+                issues.push('Monitorcanvas actief buiten monitorsectie.');
+            }
+
+            return {
+                ok: issues.length === 0,
+                issues
+            };
+        },
+
+        runAll() {
+            const binding = this.runBindingsCheck();
+            const navigation = this.runNavigationCheck();
+            const coverage = this.runMedicalCoverageCheck();
+            const variation = this.runQuizVariationCheck();
+            const monitor = this.runMonitorSanityCheck();
+            const scoreParts = [binding.ok, navigation.ok, coverage.ok, variation.ok, monitor.ok];
+            const score = Math.round((scoreParts.filter(Boolean).length / scoreParts.length) * 100);
+            const scoreBand = score >= 90 ? 'Groen' : score >= 70 ? 'Oranje' : 'Rood';
+
+            const result = {
+                lastRunAt: new Date().toISOString(),
+                bindingIssues: [...binding.missingMethods, ...binding.invalidOnclick],
+                sectionIssues: [
+                    ...navigation.missingSections.map(i => `Ontbrekende nav-section: ${i}`),
+                    ...navigation.unlinkedSections.map(i => `Zonder sidebar-link: ${i}`)
+                ],
+                sourceCoverage: coverage,
+                variationMetrics: variation,
+                monitorHealth: monitor,
+                score,
+                scoreBand
+            };
+
+            AppState.diagnostics = result;
+            return {
+                result,
+                checks: { binding, navigation, coverage, variation, monitor }
+            };
         }
     };
 
@@ -11762,6 +13850,7 @@ a:hover { color: var(--primary-hover); }
         const current = LearningPathEngine.getCurrentModule();
 
         container.innerHTML = `
+            ${ECGApp.getContextHelpHTML('learningPath')}
             <div class="card mb-2">
                 <div class="card-header">
                     <h3 class="card-title">🧭 Leerpad (Hybride)</h3>
@@ -11794,6 +13883,18 @@ a:hover { color: var(--primary-hover); }
                     const lockedHint = !s.unlocked
                         ? `<p class="text-muted" style="font-size: 0.8rem; margin-top: 0.5rem;">🔒 ${prerequisiteText}</p>`
                         : '';
+                    const corePitfalls = LearningPathEngine.getModulePitfalls(module.id).slice(0, 3);
+                    const corePitfallsHtml = corePitfalls.length
+                        ? `<div class="info-box warning mt-1">
+                                <div class="info-box-icon">⚠️</div>
+                                <div class="info-box-content">
+                                    <h4>Kernfouten</h4>
+                                    <ul class="styled-list" style="margin-top:0.35rem;">
+                                        ${corePitfalls.map(item => `<li>${item}</li>`).join('')}
+                                    </ul>
+                                </div>
+                           </div>`
+                        : '';
                     return `
                         <div class="card">
                             <div class="card-header">
@@ -11807,6 +13908,7 @@ a:hover { color: var(--primary-hover); }
                                 </p>
                                 ${module.requiredChecklistSessions ? `<p style="font-size: 0.85rem;">Checklist sessies: ${s.checklistSessions}/${module.requiredChecklistSessions}</p>` : ''}
                                 ${module.requiredCases ? `<p style="font-size: 0.85rem;">Cases: ${s.caseStats.done}/${module.requiredCases}</p>` : ''}
+                                ${corePitfallsHtml}
                                 <button class="btn btn-sm ${s.unlocked ? 'btn-primary' : 'btn-outline'} mt-1" onclick="ECGApp.startModulePractice('${module.id}')">
                                     ${s.completed ? 'Herhalen' : s.unlocked ? 'Oefen module' : '🔒 Bekijk vrijspeel-eisen'}
                                 </button>
@@ -12134,6 +14236,15 @@ a:hover { color: var(--primary-hover); }
         const coverage = MedicalContentAudit.validateCoverage();
         const auditMatrixCount = MedicalContentAudit.buildAuditMatrix().length;
         const sourceCount = Object.keys(MedicalSourceRegistry).length;
+        const diagnostics = AppState.diagnostics || {};
+        const diagnosticsAt = diagnostics.lastRunAt
+            ? diagnostics.lastRunAt.replace('T', ' ').slice(0, 19)
+            : 'Nog niet uitgevoerd';
+        const bindingIssueCount = Array.isArray(diagnostics.bindingIssues) ? diagnostics.bindingIssues.length : 0;
+        const sectionIssueCount = Array.isArray(diagnostics.sectionIssues) ? diagnostics.sectionIssues.length : 0;
+        const diagnosticsScore = Number(diagnostics.score || 0);
+        const diagnosticsBand = diagnostics.scoreBand || (diagnosticsScore >= 90 ? 'Groen' : diagnosticsScore >= 70 ? 'Oranje' : 'Rood');
+        const diagnosticsBandClass = diagnosticsScore >= 90 ? 'text-success' : diagnosticsScore >= 70 ? 'text-warning' : 'text-danger';
         container.innerHTML = `
             <div class="card">
                 <div class="card-header">
@@ -12227,6 +14338,30 @@ a:hover { color: var(--primary-hover); }
                         </div>
                     </div>
 
+                    <!-- UX Settings -->
+                    <h4 style="margin: 2rem 0 1rem;">🧩 UX Instellingen</h4>
+                    <div class="settings-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-name">Contextuele hulp</div>
+                                <div class="setting-desc">Toon hulptekst per sectie met wat je als volgende stap moet doen</div>
+                            </div>
+                            <select onchange="ECGApp.updateSetting('contextualHelp', this.value)">
+                                <option value="true" ${AppState.ui?.contextualHelp !== false ? 'selected' : ''}>Aan</option>
+                                <option value="false" ${AppState.ui?.contextualHelp === false ? 'selected' : ''}>Uit</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-name">Snelle start opnieuw tonen</div>
+                                <div class="setting-desc">Reset de onboardingkaart op het dashboard</div>
+                            </div>
+                            <button class="btn btn-outline btn-sm" onclick="ECGApp.resetOnboarding()">
+                                ↺ Reset onboarding
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Monitor Settings -->
                     <h4 style="margin: 2rem 0 1rem;">📺 Monitor Instellingen</h4>
                     <div class="settings-group">
@@ -12286,12 +14421,26 @@ a:hover { color: var(--primary-hover); }
                         </div>
                     </div>
 
+                    <!-- Diagnostics -->
+                    <h4 style="margin: 2rem 0 1rem;">🧪 Systeemchecks</h4>
+                    <div class="settings-group">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-name">App-check (bindings/flow/data)</div>
+                                <div class="setting-desc">Laatste run: ${diagnosticsAt}. Score: <strong class="${diagnosticsBandClass}">${diagnosticsScore}/100 (${diagnosticsBand})</strong>. Issues: bindings ${bindingIssueCount}, navigatie ${sectionIssueCount}.</div>
+                            </div>
+                            <button class="btn btn-outline btn-sm" onclick="ECGApp.runDiagnostics()">
+                                ▶ Uitvoeren
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- About -->
                     <h4 style="margin: 2rem 0 1rem;">ℹ️ Over</h4>
                     <div class="info-box info">
                         <div class="info-box-icon">🫀</div>
                         <div class="info-box-content">
-                            <h4>ECG Trainer Pro v2.0</h4>
+                            <h4>ECG Trainer Pro v2.2</h4>
                             <p>Een uitgebreide ECG leerapp voor IC/SEH verpleegkundigen en medisch professionals.</p>
                             <p style="margin-top: 0.5rem;">
                                 <strong>Bevat:</strong> ${ECGDatabase.getAllRhythms().length} ECG ritmes, 
@@ -12329,6 +14478,15 @@ a:hover { color: var(--primary-hover); }
             Storage.save();
             return;
         }
+        if (key === 'contextualHelp') {
+            if (!AppState.ui) AppState.ui = StateFactory.createUi();
+            AppState.ui.contextualHelp = value === true || value === 'true';
+            Storage.save();
+            if (AppState.currentSection && typeof Navigation?.renderSection === 'function') {
+                Navigation.renderSection(AppState.currentSection);
+            }
+            return;
+        }
         
         // Parse numeric values
         const numValue = parseFloat(value);
@@ -12336,28 +14494,46 @@ a:hover { color: var(--primary-hover); }
         
         // Apply certain settings immediately
         if (key === 'ecgSpeed') {
-            AppState.monitor.speed = numValue;
+            const allowed = [12.5, 25, 50];
+            AppState.monitor.speed = allowed.includes(numValue) ? numValue : 25;
         } else if (key === 'ecgAmplitude') {
-            AppState.monitor.amplitude = numValue;
+            const allowed = [0.5, 1, 2];
+            AppState.monitor.amplitude = allowed.includes(numValue) ? numValue : 1;
         } else if (key === 'defaultQuizCount') {
             AppState.settings.defaultQuizCount = parseInt(value, 10) || 10;
         } else if (key === 'timerSeconds') {
             AppState.settings.timerSeconds = parseInt(value, 10) || 30;
         }
+
+        if ((key === 'ecgSpeed' || key === 'ecgAmplitude') && AppState.currentSection === 'monitor') {
+            Sections.renderMonitor(Utils.$('#contentArea'));
+        }
         
         Storage.save();
     };
 
+    ECGApp.resetOnboarding = function() {
+        if (!AppState.ui) AppState.ui = StateFactory.createUi();
+        AppState.ui.onboardingCompleted = false;
+        Storage.save();
+        if (AppState.currentSection === 'dashboard') {
+            Sections.renderDashboard(Utils.$('#contentArea'));
+        }
+    };
+
     ECGApp.exportData = function() {
         const data = {
-            version: '2.0',
+            version: '2.2',
             exportDate: new Date().toISOString(),
             profile: AppState.profile,
+            ui: AppState.ui,
+            quizQuality: AppState.quizQuality,
             user: AppState.user,
             settings: AppState.settings,
             learningPath: AppState.learningPath,
             coachState: AppState.coachState,
-            learningAnalytics: AppState.learningAnalytics
+            learningAnalytics: AppState.learningAnalytics,
+            diagnostics: AppState.diagnostics
         };
         
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -12407,6 +14583,12 @@ a:hover { color: var(--primary-hover); }
                     if (data.profile?.name) {
                         AppState.profile.name = data.profile.name;
                     }
+                    if (data.ui) {
+                        AppState.ui = { ...AppState.ui, ...data.ui };
+                    }
+                    if (data.quizQuality) {
+                        AppState.quizQuality = { ...AppState.quizQuality, ...data.quizQuality };
+                    }
                     AppState.user = { ...AppState.user, ...data.user };
                     if (data.settings) {
                         AppState.settings = data.settings;
@@ -12441,12 +14623,21 @@ a:hover { color: var(--primary-hover); }
                             ...data.learningAnalytics
                         };
                     }
+                    if (data.diagnostics) {
+                        AppState.diagnostics = {
+                            ...AppState.diagnostics,
+                            ...data.diagnostics
+                        };
+                    }
                     LearningPathEngine.syncState();
                     LearningCoachEngine.syncAnalytics();
                     MedicalContentAudit.ensureRhythmMetadata();
                     MedicalContentAudit.ensureCaseQuestionSources();
-                    AppState.learningAnalytics.lastReviewDate = new Date().toISOString().slice(0, 10);
+                    if (!AppState.learningAnalytics.lastReviewDate) {
+                        AppState.learningAnalytics.lastReviewDate = '2026-02-15';
+                    }
                     AppState.learningAnalytics.medicalCoverage = MedicalContentAudit.validateCoverage();
+                    DiagnosticsEngine.runAll();
                     
                     Storage.save();
                     
@@ -12479,26 +14670,6 @@ a:hover { color: var(--primary-hover); }
         };
         
         input.click();
-    };
-
-    // ==================== EXTEND NAVIGATION ====================
-    
-    // Update navigation items to include new sections
-    Navigation.sections = {
-        dashboard: { title: 'Dashboard', icon: '🏠', render: Sections.renderDashboard },
-        monitor: { title: 'Monitor Simulator', icon: '📺', render: Sections.renderMonitor },
-        coach: { title: 'Leercoach', icon: '🧠', render: Sections.renderCoach },
-        learningPath: { title: 'Leerpad', icon: '🧭', render: Sections.renderLearningPath },
-        library: { title: 'ECG Bibliotheek', icon: '📚', render: Sections.renderLibrary },
-        systematic: { title: 'Systematische Analyse', icon: '📋', render: Sections.renderSystematic },
-        quiz: { title: 'Quizmodus', icon: '🎯', render: Sections.renderQuiz },
-        cases: { title: 'Klinische Cases', icon: '🏥', render: Sections.renderCases },
-        acls: { title: 'ACLS Protocollen', icon: '🚨', render: Sections.renderACLS },
-        drugs: { title: 'Medicatie', icon: '💊', render: Sections.renderDrugs },
-        criteria: { title: 'Criteria', icon: '📏', render: Sections.renderCriteria },
-        progress: { title: 'Voortgang', icon: '📊', render: Sections.renderProgress },
-        achievements: { title: 'Prestaties', icon: '🏆', render: Sections.renderAchievements },
-        settings: { title: 'Instellingen', icon: '⚙️', render: Sections.renderSettings }
     };
 
     // ==================== PERIODIC CHECKS ====================
