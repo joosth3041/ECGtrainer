@@ -3,7 +3,7 @@
 <head>
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>IC ECG Trainer Pro v2.2</title>
+ <title>IC ECG Trainer Pro v2.5</title>
  <style>
  /* ==================== RESET & BASE ==================== */
  * {
@@ -2215,6 +2215,102 @@ a:hover { color: var(--primary-hover); }
  background: rgba(6, 12, 20, 0.35);
 }
 
+.library-grid-readable {
+ display: grid;
+ grid-template-columns: 1fr;
+ gap: 1rem;
+}
+
+.library-rhythm-card {
+ cursor: pointer;
+}
+
+.library-rhythm-card .card-body {
+ display: grid;
+ gap: 0.68rem;
+}
+
+.library-meta-row {
+ display: flex;
+ align-items: center;
+ flex-wrap: wrap;
+ gap: 0.42rem;
+}
+
+.library-calibration-chip {
+ display: inline-flex;
+ align-items: center;
+ gap: 0.35rem;
+ background: #fff3f5;
+ border: 1px solid #efb5bf;
+ color: #8b1d42;
+ padding: 0.22rem 0.52rem;
+ border-radius: 999px;
+ font-size: 0.72rem;
+ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.library-ecg-panel {
+ border-radius: 10px;
+ overflow: hidden;
+}
+
+.library-mini-grid {
+ grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.library-mini-grid .library-mini-lead:nth-child(4n) {
+ border-right: none;
+}
+
+.library-mini-grid .library-mini-lead:nth-child(n + 9) {
+ border-bottom: none;
+}
+
+.library-mini-canvas {
+ width: 100%;
+ height: 76px;
+ display: block;
+}
+
+.library-focus-strip {
+ margin-top: 0.45rem;
+}
+
+.library-focus-canvas {
+ width: 100%;
+ height: 150px;
+ display: block;
+}
+
+.library-signature {
+ font-size: 0.84rem;
+ color: #7a1633;
+ line-height: 1.42;
+}
+
+.library-diff-block {
+ border: 1px solid #efc6cf;
+ border-radius: 8px;
+ background: #fff6f8;
+ padding: 0.52rem 0.62rem;
+ display: grid;
+ gap: 0.35rem;
+ font-size: 0.79rem;
+ line-height: 1.36;
+ color: #6d1f3a;
+}
+
+.library-diff-block strong {
+ color: #8e1b40;
+}
+
+.library-desc {
+ font-size: 0.8rem;
+ color: var(--text-muted);
+ line-height: 1.45;
+}
+
 @media (max-width: 1100px) {
  .monitor-paper-grid {
  grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2227,6 +2323,18 @@ a:hover { color: var(--primary-hover); }
 
  .monitor-advanced-grid {
  grid-template-columns: 1fr;
+ }
+
+ .library-mini-canvas {
+ height: 66px;
+ }
+
+ .library-focus-canvas {
+ height: 132px;
+ }
+
+ .library-mini-grid {
+ grid-template-columns: repeat(4, minmax(0, 1fr));
  }
 }
 
@@ -2261,6 +2369,39 @@ a:hover { color: var(--primary-hover); }
 
  .rhythm-browser-list {
  max-height: 340px;
+ }
+
+ .library-mini-grid {
+ grid-template-columns: repeat(4, minmax(0, 1fr));
+ }
+
+ .library-mini-grid .library-mini-lead:nth-child(2n) {
+ border-right: 1px solid #efc6cf;
+ }
+
+ .library-mini-grid .library-mini-lead:nth-child(4n) {
+ border-right: none;
+ }
+
+ .library-mini-grid .library-mini-lead:nth-child(n + 9) {
+ border-bottom: none;
+ }
+
+ .library-mini-canvas {
+ height: 56px;
+ }
+
+ .library-focus-canvas {
+ height: 108px;
+ }
+
+ .library-meta-row {
+ gap: 0.32rem;
+ }
+
+ .library-calibration-chip {
+ font-size: 0.68rem;
+ padding: 0.2rem 0.45rem;
  }
 }
 
@@ -2602,7 +2743,7 @@ a:hover { color: var(--primary-hover); }
 
 .quiz-focus-canvas {
  width: 100%;
- height: 220px;
+ height: 250px;
  display: block;
 }
 
@@ -2656,7 +2797,7 @@ a:hover { color: var(--primary-hover); }
 
 .quiz-lead-canvas {
  width: 100%;
- height: 88px;
+ height: 96px;
  display: block;
 }
 
@@ -3412,7 +3553,7 @@ a:hover { color: var(--primary-hover); }
  }
 
  .quiz-focus-canvas {
- height: 210px;
+ height: 230px;
  }
 
  .quiz-lead-grid {
@@ -3509,7 +3650,7 @@ a:hover { color: var(--primary-hover); }
 <div class="logo-icon">&#x1F9E0;</div>
  <div>
  <div class="logo-text">ECG Trainer Pro</div>
- <div class="logo-subtitle">Intensive Care Editie v2.2</div>
+ <div class="logo-subtitle">Intensive Care Editie v2.5</div>
  </div>
  </div>
  </div>
@@ -3750,7 +3891,19 @@ a:hover { color: var(--primary-hover); }
  library: {
  selectedCategory: 'all',
  searchQuery: '',
- selectedRhythm: null
+ selectedRhythm: null,
+ searchMode: 'combined',
+ focusLeadByRhythm: {}
+ },
+ libraryView: {
+ defaultLead: 'II',
+ previewSeconds: 8,
+ highContrast: true,
+ compactCards: false,
+ lazyRenderBatch: 12,
+ layout: 'twelve_lead_focus',
+ showCalibration: true,
+ showLeadLabels: true
  },
  settings: {
  soundEnabled: true,
@@ -3816,12 +3969,24 @@ sourceCoverage: null,
 variationMetrics: null,
 monitorHealth: null,
 monitorVisual: null
+},
+runtime: {
+dirty: false,
+saveScheduled: false,
+saveTimer: null,
+lastSaveAt: 0,
+diagnostics: {
+quickLastRunAt: null,
+fullLastRunAt: null,
+fullResultCache: null
+}
 }
 };
 
  const StateFactory = {
  uiTemplate: null,
  quizQualityTemplate: null,
+ libraryViewTemplate: null,
  quizViewTemplate: null,
  monitorTemplate: null,
  userTemplate: null,
@@ -3842,6 +4007,10 @@ diagnosticsTemplate: null,
 
  createQuizQuality() {
  return this.clone(this.quizQualityTemplate);
+ },
+
+ createLibraryView() {
+ return this.clone(this.libraryViewTemplate);
  },
 
  createQuizView() {
@@ -3883,6 +4052,7 @@ return this.clone(this.diagnosticsTemplate);
 
  StateFactory.uiTemplate = StateFactory.clone(AppState.ui);
  StateFactory.quizQualityTemplate = StateFactory.clone(AppState.quizQuality);
+ StateFactory.libraryViewTemplate = StateFactory.clone(AppState.libraryView);
  StateFactory.quizViewTemplate = StateFactory.clone(AppState.quizView);
  StateFactory.monitorTemplate = StateFactory.clone(AppState.monitor);
  StateFactory.userTemplate = StateFactory.clone(AppState.user);
@@ -3894,12 +4064,41 @@ StateFactory.monitorValidationTemplate = StateFactory.clone(AppState.monitorVali
 StateFactory.diagnosticsTemplate = StateFactory.clone(AppState.diagnostics);
 
  // ==================== LOCAL STORAGE ====================
- const Storage = {
- KEY: 'ecg_trainer_v2_profiles',
- BACKUP_KEY: 'ecg_trainer_v2_profiles_backup',
- LEGACY_KEY: 'ecg_trainer_v2_data',
- ACTIVE_PROFILE_KEY: 'ecg_trainer_v2_active_profile',
-SCHEMA_VERSION: 7,
+const Storage = {
+KEY: 'ecg_trainer_v2_profiles',
+BACKUP_KEY: 'ecg_trainer_v2_profiles_backup',
+LEGACY_KEY: 'ecg_trainer_v2_data',
+ACTIVE_PROFILE_KEY: 'ecg_trainer_v2_active_profile',
+SCHEMA_VERSION: 8,
+
+markDirty() {
+if (AppState.runtime) {
+AppState.runtime.dirty = true;
+}
+},
+
+scheduleSave(delayMs = 1500) {
+const runtime = AppState.runtime;
+if (!runtime) {
+this.save('scheduled_fallback');
+return;
+}
+this.markDirty();
+if (runtime.saveScheduled) return;
+runtime.saveScheduled = true;
+runtime.saveTimer = setTimeout(() => {
+runtime.saveScheduled = false;
+runtime.saveTimer = null;
+this.flushSave('scheduled');
+}, Math.max(200, Number(delayMs) || 1500));
+},
+
+flushSave(reason = 'manual') {
+const runtime = AppState.runtime;
+if (!runtime || runtime.dirty || reason === 'manual' || reason === 'beforeunload') {
+this.save(reason);
+}
+},
 
  createDefaultCoachState() {
  return StateFactory.createCoachState();
@@ -3922,6 +4121,7 @@ return StateFactory.createMonitorValidation();
  name,
  ui: StateFactory.createUi(),
  quizQuality: StateFactory.createQuizQuality(),
+ libraryView: StateFactory.createLibraryView(),
  quizView: StateFactory.createQuizView(),
  monitor: StateFactory.createMonitor(),
  user: StateFactory.createUser(),
@@ -3966,6 +4166,10 @@ savedAt: new Date().toISOString()
  quizQuality: {
  ...base.quizQuality,
  ...(profile?.quizQuality || {})
+ },
+ libraryView: {
+ ...base.libraryView,
+ ...(profile?.libraryView || {})
  },
  quizView: {
  ...base.quizView,
@@ -4176,6 +4380,7 @@ diagnostics: {
 
  AppState.ui = { ...StateFactory.createUi(), ...(profileData.ui || {}) };
  AppState.quizQuality = { ...StateFactory.createQuizQuality(), ...(profileData.quizQuality || {}) };
+ AppState.libraryView = { ...StateFactory.createLibraryView(), ...(profileData.libraryView || {}) };
  AppState.quizView = { ...StateFactory.createQuizView(), ...(profileData.quizView || {}) };
  const baseMonitor = StateFactory.createMonitor();
  AppState.monitor = {
@@ -4234,7 +4439,7 @@ AppState.diagnostics = {
  };
  },
 
- save() {
+ save(reason = 'manual') {
  try {
  const container = this.getContainer();
  const activeId = this.getActiveProfileId(container);
@@ -4245,6 +4450,7 @@ AppState.diagnostics = {
  name: AppState.profile.name || existing.name || 'Standaard',
  ui: AppState.ui,
  quizQuality: AppState.quizQuality,
+ libraryView: AppState.libraryView,
  quizView: AppState.quizView,
  monitor: {
  ...AppState.monitor,
@@ -4266,6 +4472,15 @@ savedAt: new Date().toISOString()
 };
 
  this.saveContainer(container);
+ if (AppState.runtime) {
+ AppState.runtime.dirty = false;
+ AppState.runtime.lastSaveAt = Date.now();
+ if (AppState.runtime.saveTimer) {
+ clearTimeout(AppState.runtime.saveTimer);
+ AppState.runtime.saveTimer = null;
+ }
+ AppState.runtime.saveScheduled = false;
+ }
  } catch (e) {
  console.error('Opslaan mislukt:', e);
  }
@@ -4307,55 +4522,55 @@ savedAt: new Date().toISOString()
 categories: {
 normal: {
 name: 'Normaal Sinusritme',
-icon: '&#x1F49A;',
+icon: '💚',
 color: 'green',
 description: 'Normale hartritmes'
 },
 bradycardia: {
 name: 'Bradycardieën',
-icon: '&#x1F422;',
+icon: '🐢',
 color: 'blue',
 description: 'Trage ritmes (< 60 bpm)'
 },
 tachycardia: {
 name: 'Tachycardieën',
-icon: '&#x26A1;',
+icon: '⚡',
 color: 'yellow',
 description: 'Snelle ritmes (> 100 bpm)'
 },
 atrial: {
 name: 'Atriale Aritmieën',
-icon: '&#x1F9E0;',
+icon: '🧠',
 color: 'purple',
 description: 'Stoornissen vanuit de atria'
 },
 ventricular: {
 name: 'Ventriculaire Aritmieën',
-icon: '&#x1F494;',
+icon: '💔',
 color: 'red',
 description: 'Stoornissen vanuit ventrikels'
 },
 blocks: {
 name: 'Geleidingsstoornissen',
-icon: '&#x1F517;',
+icon: '🔗',
 color: 'orange',
 description: 'AV-blokken en bundeltak blokken'
 },
 ischemia: {
 name: 'Ischemie & Infarcten',
-icon: '&#x2764;&#xFE0F;',
+icon: '❤️',
 color: 'red',
 description: 'Coronaire problematiek'
 },
 pacemaker: {
 name: 'Pacemaker Ritmes',
-icon: '&#x1F50B;',
+icon: '🔋',
 color: 'cyan',
 description: 'Gepacede ritmes'
 },
 other: {
 name: 'Overige',
-icon: '&#x1F4CC;',
+icon: '📌',
 color: 'gray',
 description: 'Overige ECG afwijkingen'
 }
@@ -6614,6 +6829,80 @@ description: 'Overige ECG afwijkingen'
  hyperkalemia: 'Spitse T-golven, verbreding van QRS en afvlakking/verdwijnen van P-golven passen bij klinisch relevante hyperkaliëmie.',
  wpw: 'Kort PR-interval met delta-golf en verbreed begin van het QRS past bij pre-excitatie (WPW).'
  },
+ rhythmDifferentiationOverrides: {
+ vfib: {
+ signaturePattern: 'Volledig chaotisch patroon zonder herkenbare P-QRS-T-structuur en zonder effectieve output.',
+ looksLike: ['Fijne asystolie', 'Ernstig motion artifact'],
+ keyDistinguishers: ['Geen consistente QRS-complexen', 'Amplitude en frequentie variëren continu', 'Patiënt is pulsloos: behandel als schokbaar arrest'],
+ firstSafeStep: 'Start direct hoogwaardige CPR en defibrilleer zo snel mogelijk volgens schokbaar-arrestprotocol.'
+ },
+ asystole: {
+ signaturePattern: 'Nagenoeg vlakke lijn zonder georganiseerde ventriculaire activiteit in meerdere afleidingen.',
+ looksLike: ['Fijne ventrikelfibrillatie', 'Lead/electrode los contact'],
+ keyDistinguishers: ['Geen identificeerbare QRS-complexen', 'Bevestig in meerdere afleidingen', 'Sluit technische oorzaak eerst uit'],
+ firstSafeStep: 'Start direct CPR, geef adrenaline volgens protocol en behandel reversibele oorzaken (4H/4T).'
+ },
+ pea: {
+ signaturePattern: 'Georganiseerd ECG-ritme zonder palpabele pols of effectieve circulatie.',
+ looksLike: ['Ernstige hypotensie met zwakke pols', 'Pseudo-PEA bij meetfouten'],
+ keyDistinguishers: ['Elektrische activiteit aanwezig maar klinisch geen puls', 'Ritme kan smal of breed zijn', 'Hemodynamiek bepaalt urgentie'],
+ firstSafeStep: 'Behandel als niet-schokbaar arrest: CPR, adrenaline en parallel 4H/4T uitwerken.'
+ },
+ vtach_monomorphic: {
+ signaturePattern: 'Regelmatige brede-complex tachycardie met uniforme QRS-morfologie.',
+ looksLike: ['SVT met aberrantie', 'Sinustachycardie met bestaand bundeltakblok'],
+ keyDistinguishers: ['Breed QRS in alle slagen', 'Vaak AV-dissociatie/capture- of fusion-beats', 'Bij twijfel behandelen als VT'],
+ firstSafeStep: 'Beoordeel direct stabiliteit; instabiel = gesynchroniseerde cardioversie, stabiel = VT-pad en senior support.'
+ },
+ vtach_polymorphic: {
+ signaturePattern: 'Breed-complex tachycardie met wisselende morfologie en as (torsades-context overwegen).',
+ looksLike: ['Ventrikelfibrillatie', 'Artifact bij hoge ruis'],
+ keyDistinguishers: ['QRS-vorm verandert beat-to-beat', 'Vaak context van QT-verlenging', 'Snelle progressie naar instabiliteit mogelijk'],
+ firstSafeStep: 'Bij instabiliteit direct elektriciteitstherapie; corrigeer tegelijk QT-triggers en elektrolyten.'
+ },
+ deWinter: {
+ signaturePattern: 'Upsloping ST-depressie precordiaal met prominente symmetrische T-golven en vaak lichte ST-elevatie in aVR.',
+ looksLike: ['NSTEMI met diffuse ST-depressie', 'Vroege repolarisatie'],
+ keyDistinguishers: ['Patroon is persisterend en territoriaal (voorwand)', 'Geen klassieke ST-elevatie maar wel occlusierisico', 'Kliniek van acute ischemie ondersteunt urgentie'],
+ firstSafeStep: 'Behandel als STEMI-equivalent en activeer urgente coronairstrategie zonder vertraging.'
+ },
+ lbbb: {
+ signaturePattern: 'Breed QRS met typische LBBB-morfologie waarbij ischemietekens gemaskeerd kunnen zijn.',
+ looksLike: ['Ritmestrook met ventriculaire pacing', 'Aspecifieke intraventriculaire geleidingsvertraging'],
+ keyDistinguishers: ['Brede/notched R in laterale afleidingen', 'Diepe S in V1-V3', 'ACS-diagnostiek vereist aanvullende criteria en kliniek'],
+ firstSafeStep: 'Bij ischemische klachten: behandel als hoog-risico ACS en gebruik aanvullende criteria (o.a. Sgarbossa-context).'
+ },
+ wpw: {
+ signaturePattern: 'Kort PR-interval met delta-golf en verbreed initieel QRS (pre-excitatie).',
+ looksLike: ['Bundeltakblok', 'Ventriculaire ectopie met pre-excitatie-achtige opstart'],
+ keyDistinguishers: ['Delta-golf aan begin van QRS', 'PR-interval verkort', 'Bij AF + WPW geen AV-knoopblokkers'],
+ firstSafeStep: 'Beoordeel eerst of er instabiliteit of AF met pre-excitatie is; kies dan ritmespecifiek spoedpad.'
+ },
+ stemi_anterior: {
+ signaturePattern: 'ST-elevatie in aangrenzende anterieure afleidingen (V1-V4) met reciprociteit mogelijk inferieur.',
+ looksLike: ['Vroege repolarisatie', 'Pericarditis'],
+ keyDistinguishers: ['Territoriaal patroon in aangrenzende leads', 'Dynamische ischemische klachten', 'Reciproke veranderingen versterken diagnose'],
+ firstSafeStep: 'Activeer direct STEMI/reperfusiepad volgens regionale afspraken en lokaal protocol.'
+ },
+ stemi_inferior: {
+ signaturePattern: 'ST-elevatie in II, III en aVF vaak met reciproke ST-depressie in I/aVL.',
+ looksLike: ['Pericarditis', 'Benigne variant met inferieure ST-verhoging'],
+ keyDistinguishers: ['Territoriale inferieure lead-clustering', 'Reciproke veranderingen ondersteunen ischemie', 'Denk aan rechterventrikelbetrokkenheid bij hypotensie'],
+ firstSafeStep: 'Start acuut ACS-beleid en regel urgente reperfusiestrategie.'
+ },
+ stemi_lateral: {
+ signaturePattern: 'ST-elevatie lateraal (I, aVL, V5-V6) met passend klinisch ischemiebeeld.',
+ looksLike: ['Vroege repolarisatie', 'Niet-specifieke ST-T afwijkingen'],
+ keyDistinguishers: ['Laterale lead-clustering', 'Klinische context van acute pijn', 'Reciproke afwijkingen in inferieure leads kunnen aanwezig zijn'],
+ firstSafeStep: 'Behandel als STEMI en versnel coronair/reperfusiepad.'
+ },
+ stemi_posterior: {
+ signaturePattern: 'Horizontale ST-depressie en hoge R in V1-V3 als spiegelbeeld van posterieure ST-elevatie.',
+ looksLike: ['RBBB met secundaire ST-T veranderingen', 'Subendocardiale ischemie zonder occlusie'],
+ keyDistinguishers: ['Spiegelbeeldpatroon anterieur', 'Posterieure afleidingen kunnen elevatie tonen', 'Meestal context van acute ischemie'],
+ firstSafeStep: 'Interpreteer als STEMI-equivalent en behandel met urgente reperfusielogistiek.'
+ }
+ },
  rhythmGuidelineRefs: {
  atrial_fibrillation: 'ESC AF 2024: acute rate control bij stabiele AF en indicaties voor urgente cardioversie bij instabiliteit.',
  atrial_flutter: 'ESC AF 2024: flutter-benadering met rate/rhythm control en contextafhankelijke cardioversie.',
@@ -6884,6 +7173,105 @@ description: 'Overige ECG afwijkingen'
  return 'Richtlijnmodus: ERC/ESC default; volg lokaal protocol.';
  },
 
+ normalizeUniqueStrings(values, min = 0, fallback = []) {
+ const unique = [];
+ (Array.isArray(values) ? values : []).forEach(item => {
+ if (!this.isNonEmptyString(item)) return;
+ const normalized = item.trim();
+ if (unique.includes(normalized)) return;
+ unique.push(normalized);
+ });
+ (Array.isArray(fallback) ? fallback : []).forEach(item => {
+ if (unique.length >= min) return;
+ if (!this.isNonEmptyString(item)) return;
+ const normalized = item.trim();
+ if (unique.includes(normalized)) return;
+ unique.push(normalized);
+ });
+ return unique;
+ },
+
+ buildSignaturePattern(rhythm) {
+ const features = Array.isArray(rhythm?.ecgFeatures) ? rhythm.ecgFeatures.filter(f => this.isNonEmptyString(f)) : [];
+ if (features.length >= 2) {
+ return `${features[0]}; ${features[1]}.`;
+ }
+ if (features.length === 1) {
+ return features[0];
+ }
+ if (this.isNonEmptyString(rhythm?.whyCorrect)) {
+ return rhythm.whyCorrect;
+ }
+ return `Patroon passend bij ${rhythm?.name || 'dit ritme'}; bevestig met systematische analyse over meerdere afleidingen.`;
+ },
+
+ buildLooksLike(rhythm) {
+ const names = [];
+ const pushName = (name) => {
+ if (!this.isNonEmptyString(name)) return;
+ const normalized = name.trim();
+ if (!names.includes(normalized)) names.push(normalized);
+ };
+
+ (rhythm.lookalikes || []).forEach(item => {
+ const name = ECGDatabase.getRhythmById(item?.id)?.name;
+ pushName(name);
+ });
+ (rhythm.differentialIds || []).forEach(id => {
+ const name = ECGDatabase.getRhythmById(id)?.name;
+ pushName(name);
+ });
+ ECGDatabase.getRhythmsByCategory(rhythm.category)
+ .filter(item => item.id !== rhythm.id)
+ .slice(0, 3)
+ .forEach(item => pushName(item.name));
+
+ if (!names.length) {
+ pushName('Nabijliggende ritmes in dezelfde categorie');
+ }
+ return names.slice(0, 3);
+ },
+
+ buildKeyDistinguishers(rhythm) {
+ const distinguishers = [];
+ const push = (value) => {
+ if (!this.isNonEmptyString(value)) return;
+ const normalized = value.trim();
+ if (!distinguishers.includes(normalized)) {
+ distinguishers.push(normalized);
+ }
+ };
+
+ (Array.isArray(rhythm.keyDistinguishers) ? rhythm.keyDistinguishers : []).forEach(push);
+ (Array.isArray(rhythm.ecgFeatures) ? rhythm.ecgFeatures : []).slice(0, 3).forEach(push);
+
+ if (this.isNonEmptyString(rhythm?.characteristics?.rhythm)) {
+ push(`Ritmeprofiel: ${rhythm.characteristics.rhythm}`);
+ }
+ if (this.isNonEmptyString(rhythm?.characteristics?.pWave)) {
+ push(`P-golfcontext: ${rhythm.characteristics.pWave}`);
+ }
+ const qrs = rhythm?.characteristics?.qrsComplex;
+ if (this.isNonEmptyString(qrs)) {
+ push(`QRS-context: ${qrs}`);
+ } else if (qrs && typeof qrs === 'object') {
+ const qrsText = `${qrs.min || '?'}-${qrs.max || '?'} ${qrs.unit || 'ms'}`.trim();
+ push(`QRS-context: ${qrsText}`);
+ }
+
+ const fallback = [
+ 'Beoordeel ritmeregelmaat over meerdere slagen.',
+ 'Meet QRS-breedte in meerdere afleidingen.',
+ 'Controleer de relatie tussen P-golven en QRS-complexen.'
+ ];
+ return this.normalizeUniqueStrings(distinguishers, 2, fallback).slice(0, 4);
+ },
+
+ buildFirstSafeStep(rhythm) {
+ if (this.isNonEmptyString(rhythm?.firstAction)) return rhythm.firstAction;
+ return 'Start met hemodynamische beoordeling en volg direct het passende lokale protocol.';
+ },
+
  ensureRhythmMetadata() {
  ECGDatabase.getAllRhythms().forEach(rhythm => {
  if (this.rhythmWhyOverrides[rhythm.id]) {
@@ -6906,6 +7294,25 @@ description: 'Overige ECG afwijkingen'
  if (!this.isNonEmptyString(rhythm.guidelineRef)) {
  rhythm.guidelineRef = this.getGuidelineReferenceForRhythm(rhythm);
  }
+
+ const differentiationOverride = this.rhythmDifferentiationOverrides[rhythm.id] || {};
+ rhythm.signaturePattern = this.isNonEmptyString(differentiationOverride.signaturePattern)
+ ? differentiationOverride.signaturePattern
+ : (this.isNonEmptyString(rhythm.signaturePattern) ? rhythm.signaturePattern : this.buildSignaturePattern(rhythm));
+
+ const looksLikeInput = Array.isArray(differentiationOverride.looksLike) && differentiationOverride.looksLike.length
+ ? differentiationOverride.looksLike
+ : (Array.isArray(rhythm.looksLike) && rhythm.looksLike.length ? rhythm.looksLike : this.buildLooksLike(rhythm));
+ rhythm.looksLike = this.normalizeUniqueStrings(looksLikeInput, 1, this.buildLooksLike(rhythm)).slice(0, 3);
+
+ const distinguisherInput = Array.isArray(differentiationOverride.keyDistinguishers) && differentiationOverride.keyDistinguishers.length
+ ? differentiationOverride.keyDistinguishers
+ : this.buildKeyDistinguishers(rhythm);
+ rhythm.keyDistinguishers = this.normalizeUniqueStrings(distinguisherInput, 2, this.buildKeyDistinguishers(rhythm)).slice(0, 4);
+
+ rhythm.firstSafeStep = this.isNonEmptyString(differentiationOverride.firstSafeStep)
+ ? differentiationOverride.firstSafeStep
+ : (this.isNonEmptyString(rhythm.firstSafeStep) ? rhythm.firstSafeStep : this.buildFirstSafeStep(rhythm));
  });
  },
 
@@ -7027,7 +7434,7 @@ description: 'Overige ECG afwijkingen'
  validateRhythmCompleteness() {
  this.ensureRhythmMetadata();
  const rhythms = ECGDatabase.getAllRhythms();
- const requiredFields = ['whyCorrect', 'sourceId', 'guidelineRef', 'firstAction', 'firstActionWhy', 'escalationCue'];
+ const requiredFields = ['whyCorrect', 'sourceId', 'guidelineRef', 'firstAction', 'firstActionWhy', 'escalationCue', 'signaturePattern', 'firstSafeStep'];
  const missingFieldDetails = [];
  const depthIssues = [];
 
@@ -7049,6 +7456,20 @@ description: 'Overige ECG afwijkingen'
  && rhythm.lookalikes.some(item => this.isNonEmptyString(item?.id) && this.isNonEmptyString(item?.whyWrong));
  if (!hasLookalike) {
  depthIssues.push({ id: rhythm.id, issue: 'lookalike_missing' });
+ }
+
+ const looksLikeCount = Array.isArray(rhythm.looksLike)
+ ? rhythm.looksLike.filter(item => this.isNonEmptyString(item)).length
+ : 0;
+ if (looksLikeCount < 1) {
+ depthIssues.push({ id: rhythm.id, issue: 'looksLike_missing' });
+ }
+
+ const keyDistinguishersCount = Array.isArray(rhythm.keyDistinguishers)
+ ? rhythm.keyDistinguishers.filter(item => this.isNonEmptyString(item)).length
+ : 0;
+ if (keyDistinguishersCount < 2) {
+ depthIssues.push({ id: rhythm.id, issue: 'keyDistinguishers_lt_2' });
  }
 
  if ((rhythm.urgency === 'high' || rhythm.urgency === 'critical')) {
@@ -7679,11 +8100,27 @@ description: 'Overige ECG afwijkingen'
  return labels[urgency] || labels.none;
  },
 
- // Get category icon
- getCategoryIcon(category) {
- const cat = ECGDatabase.categories[category];
- return cat ? cat.icon : '';
- },
+// Get category icon
+getCategoryIcon(category) {
+const cat = ECGDatabase.categories[category];
+if (!cat || typeof cat.icon !== 'string') return '';
+return this.decodeHtmlEntities(cat.icon);
+},
+
+decodeHtmlEntities(text) {
+if (typeof text !== 'string' || text.indexOf('&#') === -1) return text || '';
+return text.replace(/&#(x?[0-9a-fA-F]+);/g, (match, code) => {
+const parsed = code.startsWith('x') || code.startsWith('X')
+? parseInt(code.slice(1), 16)
+: parseInt(code, 10);
+if (!Number.isFinite(parsed) || parsed <= 0) return match;
+try {
+return String.fromCodePoint(parsed);
+} catch (err) {
+return match;
+}
+});
+},
 
  // Animate element
  animateElement(element, animation) {
@@ -7777,6 +8214,9 @@ description: 'Overige ECG afwijkingen'
  ECGRenderer.stop('monitorCanvas');
  ECGRenderer.destroy('monitorCanvas');
  AppState.monitor.isRunning = false;
+ }
+ if (previousSection === 'library' && sectionId !== 'library' && typeof ECGApp?.cleanupLibraryPreviewObserver === 'function') {
+ ECGApp.cleanupLibraryPreviewObserver();
  }
 
  // Update state
@@ -8657,18 +9097,25 @@ adjusted = Math.abs(adjusted) * 0.95;
  return value;
  },
 
- // Start animation
- start(canvasId) {
- const config = this.activeCanvases.get(canvasId);
- if (!config || config.isRunning) return;
+// Start animation
+start(canvasId, options = {}) {
+const config = this.activeCanvases.get(canvasId);
+if (!config || config.isRunning) return;
 
- config.isRunning = true;
- config.lastTime = performance.now();
- config.x = 0;
- config.buffer = [];
-
- // Pre-fill buffer
- this.drawGrid(config.ctx, config.width, config.height, config.theme);
+const shouldReset = options.reset === true;
+config.isRunning = true;
+config.lastTime = performance.now();
+if (shouldReset) {
+config.x = 0;
+config.buffer = [];
+this.drawGrid(config.ctx, config.width, config.height, config.theme);
+} else {
+if (!Number.isFinite(config.x)) config.x = 0;
+if (!Array.isArray(config.buffer)) config.buffer = [];
+if (config.buffer.length === 0 && config.x === 0) {
+this.drawGrid(config.ctx, config.width, config.height, config.theme);
+}
+}
 
  const animate = (currentTime) => {
  if (!config.isRunning) return;
@@ -8812,16 +9259,7 @@ showCalibrationPulse: config.showCalibrationPulse,
 theme: config.theme
 });
 
-if (config.showIntervalsOverlay) {
-const sweepX = config.x % width;
-this.drawIntervalsOverlay(ctx, width, height, heartRate, speed, {
-rhythmId: rhythm,
-sweepX,
-currentPhase: ((sweepX * phasePerPixel) % 1 + 1) % 1,
-showInvalidMessage: true,
-theme: config.theme
-});
-}
+
 },
 
 drawIntervalsOverlay(ctx, width, height, heartRate, speed, options = {}) {
@@ -8831,6 +9269,12 @@ const pxPerSecond = Math.max(1, speed * this.settings.pixelsPerMM);
 const pixelsPerBeat = Math.max(1, pxPerSecond * beatSeconds);
 const rhythmId = options.rhythmId || options.rhythm || 'sinus_normal';
 const fiducials = this.getBeatFiducials(rhythmId, heartRate);
+const rhythm = ECGDatabase.getRhythmById(rhythmId);
+const lead = options.lead || 'II';
+const leadTransform = this.getLeadTransform(lead, rhythm, rhythm?.waveformParams || {}) || {};
+const leadPhaseShift = Number.isFinite(Number(leadTransform.phaseShift))
+? Number(leadTransform.phaseShift)
+: 0;
 if (!fiducials.valid || !Array.isArray(fiducials.segments) || fiducials.segments.length === 0) {
 if (options.showInvalidMessage) {
 ctx.fillStyle = options.theme?.overlayTextColor || 'rgba(190, 24, 93, 0.9)';
@@ -8841,19 +9285,46 @@ return;
 }
 
 const qrsStartPhase = Number(fiducials.qrsStartPhase || 0.16);
-const currentPhaseRaw = Number(options.currentPhase);
-const currentPhase = Number.isFinite(currentPhaseRaw) ? ((currentPhaseRaw % 1) + 1) % 1 : qrsStartPhase;
-let deltaPhase = qrsStartPhase - currentPhase;
-if (deltaPhase > 0.5) deltaPhase -= 1;
-if (deltaPhase < -0.5) deltaPhase += 1;
-const sweepX = Number.isFinite(Number(options.sweepX)) ? Number(options.sweepX) : width * 0.78;
-const anchorX = sweepX + (deltaPhase * pixelsPerBeat);
+const qrsLeadPhase = ((qrsStartPhase - leadPhaseShift) % 1 + 1) % 1;
+const firstQrsX = qrsLeadPhase * pixelsPerBeat;
+const anchors = [];
+const startBeat = Math.floor((-firstQrsX) / pixelsPerBeat) - 2;
+const endBeat = Math.ceil((width - firstQrsX) / pixelsPerBeat) + 2;
+for (let beat = startBeat; beat <= endBeat; beat++) {
+const anchor = firstQrsX + (beat * pixelsPerBeat);
+if (anchor > -pixelsPerBeat && anchor < width + pixelsPerBeat) {
+anchors.push(anchor);
+}
+}
+if (!anchors.length) return;
+
+const targetX = Number.isFinite(Number(options.labelAnchorX))
+? Number(options.labelAnchorX)
+: width * 0.72;
+let labelAnchor = anchors[0];
+anchors.forEach(anchor => {
+if (Math.abs(anchor - targetX) < Math.abs(labelAnchor - targetX)) {
+labelAnchor = anchor;
+}
+});
+const renderAnchors = options.fullWidthGuides === false ? [labelAnchor] : anchors;
+
 const overlayRows = { PR: 0, QRS: 1, QT: 2 };
 const topBase = 16;
-const rowHeight = 14;
-const bandTop = Math.round(height * 0.31);
-const bandHeight = Math.max(34, Math.round(height * 0.26));
+const rowHeight = 13;
+const subtleColorById = {
+PR: 'rgba(6, 182, 212, 0.35)',
+QRS: 'rgba(245, 158, 11, 0.38)',
+QT: 'rgba(239, 68, 68, 0.35)'
+};
+const strongColorById = {
+PR: 'rgba(6, 182, 212, 0.95)',
+QRS: 'rgba(245, 158, 11, 0.95)',
+QT: 'rgba(239, 68, 68, 0.95)'
+};
 
+renderAnchors.forEach(anchorX => {
+const isLabelAnchor = Math.abs(anchorX - labelAnchor) < Math.max(2, pixelsPerBeat * 0.12);
 fiducials.segments.forEach((segment, idx) => {
 const startX = anchorX + ((segment.startPhase - qrsStartPhase) * pixelsPerBeat);
 const endX = startX + (segment.durationSec * pxPerSecond);
@@ -8862,30 +9333,32 @@ const left = Math.max(0, startX);
 const right = Math.min(width, endX);
 if (right <= left) return;
 
-const fillById = {
-PR: 'rgba(6, 182, 212, 0.06)',
-QRS: 'rgba(245, 158, 11, 0.08)',
-QT: 'rgba(239, 68, 68, 0.06)'
-};
-ctx.fillStyle = fillById[segment.id] || 'rgba(59, 130, 246, 0.14)';
-ctx.fillRect(left, bandTop, Math.max(1, right - left), bandHeight);
-
 const row = Number.isFinite(overlayRows[segment.id]) ? overlayRows[segment.id] : Math.min(3, idx);
 const rowY = topBase + row * rowHeight;
-ctx.strokeStyle = segment.color;
-ctx.lineWidth = segment.id === 'QRS' ? 1.7 : 1.2;
+ctx.strokeStyle = isLabelAnchor
+? (strongColorById[segment.id] || segment.color)
+: (subtleColorById[segment.id] || 'rgba(59, 130, 246, 0.35)');
+ctx.lineWidth = isLabelAnchor
+? (segment.id === 'QRS' ? 1.6 : 1.2)
+: 0.9;
 ctx.beginPath();
 ctx.moveTo(left, rowY);
 ctx.lineTo(right, rowY);
+if (isLabelAnchor) {
 ctx.moveTo(left, rowY - 4);
 ctx.lineTo(left, rowY + 4);
 ctx.moveTo(right, rowY - 4);
 ctx.lineTo(right, rowY + 4);
+}
 ctx.stroke();
-ctx.fillStyle = segment.color;
+
+if (isLabelAnchor) {
+ctx.fillStyle = strongColorById[segment.id] || segment.color;
 ctx.font = '10px sans-serif';
 const labelX = Math.max(8, Math.min(width - 26, ((left + right) / 2) - 9));
 ctx.fillText(segment.label, labelX, rowY - 5);
+}
+});
 });
 },
 
@@ -9036,16 +9509,7 @@ showCalibrationPulse: options.showCalibrationPulse,
 theme: options.theme
 });
 
-if (options.showIntervalsOverlay) {
-const sweepX = Number.isFinite(Number(options.sweepX)) ? Number(options.sweepX) : width * 0.74;
-this.drawIntervalsOverlay(ctx, width, height, heartRate, speed, {
-rhythmId: rhythm,
-sweepX,
-currentPhase: ((sweepX * phasePerPixel) % 1 + 1) % 1,
-showInvalidMessage: true,
-theme: options.theme
-});
-}
+
 },
 
  // Change rhythm on running canvas
@@ -9418,7 +9882,7 @@ ${displayLeadOrder.map(lead => `
 
  <div class="monitor-quick-slider">
  <label for="monitorHrInput">Hartfrequentie: <strong id="hrValue">${AppState.monitor.heartRate}</strong> bpm</label>
- <input id="monitorHrInput" type="range" min="30" max="200" value="${AppState.monitor.heartRate}" oninput="ECGApp.setMonitorHR(this.value)">
+<input id="monitorHrInput" type="range" min="30" max="200" value="${AppState.monitor.heartRate}" oninput="ECGApp.setMonitorHR(this.value, false)" onchange="ECGApp.setMonitorHR(this.value, true)">
  </div>
 
  <div class="monitor-quick-selects">
@@ -9433,12 +9897,9 @@ ${displayLeadOrder.map(lead => `
  <button class="btn btn-sm ${monitorGain === 1 ? 'btn-primary' : 'btn-outline'}" onclick="ECGApp.setMonitorGain(1)">Gain 1x</button>
  </div>
  <div class="btn-group">
- <button class="btn btn-sm btn-outline" onclick="ECGApp.toggleMonitorOverlay()">
- ${AppState.monitor.showIntervalsOverlay ? 'Overlay uit' : 'Overlay aan'}
- </button>
- <button class="btn btn-sm btn-outline" onclick="ECGApp.toggleMonitorFreeze()">
- ${AppState.monitor.freezeFrame ? 'Hervat' : 'Freeze'}
- </button>
+ <button id="monitorFreezeBtn" class="btn btn-sm btn-outline" onclick="ECGApp.toggleMonitorFreeze()">
+${AppState.monitor.freezeFrame ? 'Hervat' : 'Freeze'}
+</button>
  </div>
  </div>
 
@@ -9617,16 +10078,15 @@ muscleNoise: renderOptions.muscleNoise,
 baselineWander: renderOptions.baselineWander,
 powerlineNoise: renderOptions.powerlineNoise,
 powerlineHz: renderOptions.powerlineHz,
-showIntervalsOverlay: AppState.monitor.showIntervalsOverlay,
-showCalibrationPulse: true,
+showCalibrationPulse: false,
 theme: paperTheme
 });
 if (AppState.monitor.isRunning && !AppState.monitor.freezeFrame) {
-ECGRenderer.start('monitorCanvas');
+ECGRenderer.start('monitorCanvas', { reset: false });
 } else {
 ECGRenderer.drawStaticStrip('monitorCanvas', AppState.monitor.currentRhythm, {
- heartRate: AppState.monitor.heartRate,
- speed: monitorSpeed,
+heartRate: AppState.monitor.heartRate,
+speed: monitorSpeed,
  amplitude: AppState.monitor.amplitude || 1,
  verticalScale: visualProfile.verticalScale,
  lineWidth: visualProfile.lineWidth,
@@ -9637,8 +10097,7 @@ muscleNoise: renderOptions.muscleNoise,
 baselineWander: renderOptions.baselineWander,
 powerlineNoise: renderOptions.powerlineNoise,
 powerlineHz: renderOptions.powerlineHz,
-showIntervalsOverlay: AppState.monitor.showIntervalsOverlay,
-showCalibrationPulse: true,
+showCalibrationPulse: false,
 theme: paperTheme
 });
 }
@@ -9648,51 +10107,117 @@ theme: paperTheme
  // ========== ECG LIBRARY ==========
  renderLibrary(container) {
  const categories = ECGDatabase.categories;
- const selectedCat = AppState.library.selectedCategory;
- const searchQuery = AppState.library.searchQuery;
+ const library = ECGApp.ensureLibraryState();
+ const validCategories = ['all', ...Object.keys(categories)];
+ const selectedCat = validCategories.includes(library.selectedCategory) ? library.selectedCategory : 'all';
+ if (library.selectedCategory !== selectedCat) library.selectedCategory = selectedCat;
+ const searchQuery = String(library.searchQuery || '');
+ const normalizedQuery = searchQuery.trim().toLowerCase();
+ const searchMode = library.searchMode === 'global' ? 'global' : 'combined';
+ const libraryView = ECGApp.getLibraryViewState();
+ const allLeads = ECGRenderer.LEAD_ORDER || ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'];
+ const displayLeadOrder = ECGApp.getTwelveLeadDisplayOrder().filter(lead => allLeads.includes(lead));
+ const libraryLead = allLeads.includes(libraryView.defaultLead) ? libraryView.defaultLead : 'II';
+ const previewSeconds = Math.max(4, Math.min(12, Number(libraryView.previewSeconds) || 8));
+ const compactCards = libraryView.compactCards === true;
+ const showCalibration = libraryView.showCalibration !== false;
+ const showLeadLabels = libraryView.showLeadLabels !== false;
+ const escapeAttr = (value) => String(value || '')
+ .replace(/&/g, '&amp;')
+ .replace(/"/g, '&quot;')
+ .replace(/</g, '&lt;')
+ .replace(/>/g, '&gt;');
+ ECGApp.cleanupLibraryPreviewObserver();
 
- let rhythms = selectedCat === 'all' 
- ? ECGDatabase.getAllRhythms() 
+ let rhythms = selectedCat === 'all'
+ ? ECGDatabase.getAllRhythms()
  : ECGDatabase.getRhythmsByCategory(selectedCat);
 
- if (searchQuery) {
- rhythms = ECGDatabase.searchRhythms(searchQuery);
+ if (normalizedQuery) {
+ if (searchMode === 'global') {
+ rhythms = ECGDatabase.getAllRhythms().filter(rhythm => ECGApp.matchesLibrarySearch(rhythm, normalizedQuery));
+ if (selectedCat !== 'all') rhythms = rhythms.filter(rhythm => rhythm.category === selectedCat);
+ } else {
+ rhythms = rhythms.filter(rhythm => ECGApp.matchesLibrarySearch(rhythm, normalizedQuery));
  }
+ }
+
+ const getLooksLikeText = (rhythm) => {
+ const explicit = Array.isArray(rhythm.looksLike) ? rhythm.looksLike : [];
+ if (explicit.length) return explicit.slice(0, 3).join(', ');
+ const ids = Array.isArray(rhythm.differentialIds) ? rhythm.differentialIds : [];
+ const names = ids
+ .map(id => ECGDatabase.getRhythmById(id)?.name)
+ .filter(Boolean);
+ if (names.length) return names.slice(0, 3).join(', ');
+ const lookalikes = Array.isArray(rhythm.lookalikes) ? rhythm.lookalikes : [];
+ const byLookalike = lookalikes
+ .map(item => ECGDatabase.getRhythmById(item?.id)?.name)
+ .filter(Boolean);
+ return byLookalike.length ? byLookalike.slice(0, 3).join(', ') : 'Geen directe lookalike opgegeven.';
+ };
+
+ const getDistinguishersText = (rhythm) => {
+ const explicit = Array.isArray(rhythm.keyDistinguishers) ? rhythm.keyDistinguishers.filter(Boolean) : [];
+ if (explicit.length) return explicit.slice(0, 3).join(' | ');
+ const fromFeatures = Array.isArray(rhythm.ecgFeatures) ? rhythm.ecgFeatures.filter(Boolean) : [];
+ return fromFeatures.length ? fromFeatures.slice(0, 3).join(' | ') : 'Gebruik systematische analyse: regelmaat, QRS-breedte en P-QRS-relatie.';
+ };
+
+ const getFirstSafeStepText = (rhythm) => {
+ if (typeof rhythm.firstSafeStep === 'string' && rhythm.firstSafeStep.trim().length) return rhythm.firstSafeStep;
+ if (typeof rhythm.firstAction === 'string' && rhythm.firstAction.trim().length) return rhythm.firstAction;
+ return 'Start met hemodynamische beoordeling en volg lokaal protocol.';
+ };
 
  container.innerHTML = `
  <div class="card mb-2">
  <div class="card-body">
  <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
- <!-- Search -->
- <div style="flex: 1; min-width: 200px;">
- <input type="text" 
- placeholder="Zoek ritme..." 
- value="${searchQuery}"
+ <div style="flex: 1; min-width: 220px;">
+ <input type="text"
+ placeholder="Zoek ritme, kenmerk of differentiaal..."
+ value="${escapeAttr(searchQuery)}"
  oninput="ECGApp.searchLibrary(this.value)"
  style="width: 100%; padding: 0.75rem 1rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-size: 0.95rem;">
  </div>
- 
- <!-- Category Filter -->
+
  <select onchange="ECGApp.filterLibrary(this.value)"
  style="padding: 0.75rem 1rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; min-width: 180px;">
  <option value="all" ${selectedCat === 'all' ? 'selected' : ''}>Alle categorieën</option>
  ${Object.entries(categories).map(([id, cat]) => `
  <option value="${id}" ${selectedCat === id ? 'selected' : ''}>
- ${cat.icon} ${cat.name}
+ ${Utils.getCategoryIcon(id)} ${cat.name}
  </option>
  `).join('')}
  </select>
 
- <!-- Count -->
  <span class="text-muted">${rhythms.length} ritmes</span>
  </div>
+ <p class="text-muted" style="margin-top: 0.65rem; font-size: 0.82rem;">
+ Filtermodus: categorie + zoekterm gecombineerd. Bibliotheekstandaard: 12-lead + focusstrip.
+ </p>
  </div>
  </div>
 
- <!-- Rhythm Grid -->
- <div class="grid-3">
- ${rhythms.map(rhythm => `
- <div class="card" style="cursor: pointer;" onclick="ECGApp.showRhythmDetail('${rhythm.id}')">
+ ${rhythms.length === 0 ? `
+ <div class="info-box warning mb-2">
+ <div class="info-box-icon">!</div>
+ <div class="info-box-content">
+ <h4>Geen ritmes gevonden</h4>
+ <p>Geen resultaten voor zoekterm "${escapeAttr(searchQuery)}" binnen categorie "${selectedCat === 'all' ? 'Alle categorieën' : (categories[selectedCat]?.name || selectedCat)}".</p>
+ </div>
+ </div>
+ ` : ''}
+
+ <div class="library-grid-readable">
+ ${rhythms.map(rhythm => {
+ const focusLead = ECGApp.getLibraryCardFocusLead(rhythm.id, libraryLead);
+ const focusTitleId = ECGApp.getLibraryFocusTitleId(rhythm.id);
+ const focusChipId = ECGApp.getLibraryFocusChipId(rhythm.id);
+ const focusCanvasId = ECGApp.getLibraryFocusCanvasId(rhythm.id);
+ return `
+ <div class="card library-rhythm-card" data-rhythm-id="${rhythm.id}" onclick="ECGApp.showRhythmDetail('${rhythm.id}')">
  <div class="card-body">
  <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
  <div>
@@ -9702,35 +10227,105 @@ theme: paperTheme
  <span class="badge ${Utils.getDifficultyBadge(rhythm.difficulty)}">${rhythm.difficulty}</span>
  </div>
 
- <!-- Mini ECG Preview -->
- <div class="ecg-monitor" style="margin-bottom: 0.75rem;">
- <canvas id="preview_${rhythm.id}" class="ecg-canvas" style="height: 80px;"></canvas>
+ <div class="library-meta-row">
+ ${showCalibration ? `<span class="library-calibration-chip">25 mm/s | 10 mm/mV</span>` : ''}
+ <span class="library-calibration-chip">${Utils.getCategoryIcon(rhythm.category)} ${categories[rhythm.category]?.name || ''}</span>
+ <span class="library-calibration-chip">Focus lead: <strong id="${focusChipId}">Lead ${focusLead}</strong></span>
+ <span class="library-calibration-chip">~${previewSeconds}s</span>
  </div>
 
- <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 0.75rem; line-height: 1.5;">
+ <div class="monitor-paper-wrapper library-ecg-panel">
+ <div class="monitor-paper-grid library-mini-grid">
+ ${displayLeadOrder.map(lead => `
+ <div class="monitor-paper-lead library-mini-lead ${focusLead === lead ? 'active' : ''}"
+ data-lead="${lead}"
+ onclick="event.stopPropagation(); ECGApp.setLibraryCardFocus('${rhythm.id}', '${lead}')">
+ <canvas id="${ECGApp.getLibraryLeadCanvasId(rhythm.id, lead)}" class="monitor-paper-canvas library-mini-canvas"></canvas>
+ ${showLeadLabels ? `<div class="monitor-paper-lead-label">${lead}</div>` : ''}
+ </div>
+ `).join('')}
+ </div>
+ <div class="monitor-rhythm-strip library-focus-strip">
+ <div class="monitor-rhythm-strip-header">
+ <span class="monitor-rhythm-strip-title" id="${focusTitleId}">Ritmestrook (focus): Lead ${focusLead}</span>
+ <span class="monitor-paper-note">HR ${rhythm.characteristics?.rate?.typical || '--'} bpm</span>
+ </div>
+ <div class="monitor-paper-lead active" style="cursor: default;">
+ <canvas id="${focusCanvasId}" class="monitor-rhythm-canvas library-focus-canvas"></canvas>
+ ${showLeadLabels ? `<div class="monitor-paper-lead-label">Lead ${focusLead}</div>` : ''}
+ </div>
+ <div class="monitor-paper-footer">
+ <span>Snelheid: 25 mm/s</span>
+ <span>Limb/Chest: 10 mm/mV</span>
+ <span>Klik mini-lead voor focuswissel</span>
+ </div>
+ </div>
+ </div>
+
+ <p class="library-signature">
+ <strong>Kernpatroon:</strong> ${rhythm.signaturePattern || rhythm.whyCorrect || rhythm.description}
+ </p>
+
+ ${!compactCards ? `
+ <div class="library-diff-block">
+ <div><strong>Lijkt op:</strong> ${getLooksLikeText(rhythm)}</div>
+ <div><strong>Zo onderscheid je het:</strong> ${getDistinguishersText(rhythm)}</div>
+ <div><strong>Eerste veilige stap:</strong> ${getFirstSafeStepText(rhythm)}</div>
+ </div>
+ ` : ''}
+
+ <p class="library-desc">
  ${rhythm.description}
  </p>
 
  <div style="display: flex; justify-content: space-between; align-items: center;">
- <span style="font-size: 0.75rem;">
- ${Utils.getCategoryIcon(rhythm.category)} ${categories[rhythm.category]?.name || ''}
+ <span style="font-size: 0.75rem;" class="text-muted">
+ Richtlijn: ERC/ESC default
  </span>
+ <span>
  ${rhythm.urgency === 'critical' ? '<span class="badge badge-critical">KRITIEK</span>' : ''}
  ${rhythm.urgency === 'high' ? '<span class="badge badge-hard">URGENT</span>' : ''}
+ </span>
  </div>
  </div>
  </div>
- `).join('')}
+ `;
+ }).join('')}
  </div>
  `;
 
- // Draw preview strips
  setTimeout(() => {
- rhythms.forEach(rhythm => {
- const rate = rhythm.characteristics?.rate?.typical || 72;
- ECGRenderer.drawStaticStrip(`preview_${rhythm.id}`, rhythm.id, { heartRate: rate });
+ const cards = Array.from(container.querySelectorAll('.library-rhythm-card[data-rhythm-id]'));
+ if (!cards.length) return;
+
+ const drawCard = (card) => {
+ if (!card || card.dataset.rendered === '1') return;
+ const rhythmId = card.dataset.rhythmId;
+ if (!rhythmId) return;
+ ECGApp.drawLibraryCardECG(rhythmId);
+ card.dataset.rendered = '1';
+ };
+
+ const batchSize = Math.max(1, Math.min(cards.length, Number(libraryView.lazyRenderBatch) || 12));
+ cards.slice(0, batchSize).forEach(drawCard);
+ const deferred = cards.slice(batchSize);
+ if (!deferred.length) return;
+
+ if ('IntersectionObserver' in window) {
+ const observer = new IntersectionObserver((entries) => {
+ entries.forEach(entry => {
+ if (entry.isIntersecting) {
+ drawCard(entry.target);
+ observer.unobserve(entry.target);
+ }
  });
- }, 100);
+ }, { root: null, rootMargin: '180px 0px', threshold: 0.05 });
+ ECGApp.libraryPreviewObserver = observer;
+ deferred.forEach(card => observer.observe(card));
+ } else {
+ deferred.forEach(drawCard);
+ }
+ }, 90);
  },
 
  // ========== SYSTEMATIC ANALYSIS ==========
@@ -10332,18 +10927,18 @@ ECGRenderer.drawLeadStrip('quizECGFocus', rhythm.id, {
 ...commonOptions,
 lead: AppState.quizView.focusLead || currentFocusLead,
 verticalScale: (visualProfile.verticalScale || 1) * (AppState.quizView?.zoom || 1),
-lineWidth: visualProfile.lineWidth || 2,
-shadowBlur: visualProfile.shadowBlur || 3,
-showCalibrationPulse: true
+lineWidth: Math.max(2.1, visualProfile.lineWidth || 2),
+shadowBlur: Math.max(2.2, visualProfile.shadowBlur || 3),
+showCalibrationPulse: false
 });
 
 ECGRenderer.drawTwelveLeadGrid('quizLead', rhythm.id, {
 ...commonOptions,
 verticalScale: Math.max(0.75, (visualProfile.verticalScale || 1) * 0.82),
-lineWidth: Math.max(1.1, (visualProfile.lineWidth || 2) - 0.8),
+lineWidth: Math.max(1.35, (visualProfile.lineWidth || 2) - 0.65),
 shadowBlur: Math.max(1.5, (visualProfile.shadowBlur || 3) - 1.2),
 leads: displayLeads,
-showCalibrationPulseLeads: ['V4', 'V5', 'V6'],
+showCalibrationPulse: false,
 canvasIdBuilder: (lead) => ECGApp.getQuizLeadCanvasId(lead)
 });
  ECGApp.updateQuizLeadSelectionStyles();
@@ -12211,8 +12806,8 @@ canvasIdBuilder: (lead) => ECGApp.getQuizLeadCanvasId(lead)
  quiz.timerInterval = null;
  }
  
- // Save progress
- Storage.save();
+// Save progress (debounced to keep quiz interactions responsive)
+Storage.scheduleSave(900);
  
  return {
  isCorrect,
@@ -12296,8 +12891,8 @@ canvasIdBuilder: (lead) => ECGApp.getQuizLeadCanvasId(lead)
  // Reset quiz state
  quiz.active = false;
  
- // Save
- Storage.save();
+// Save final quiz state before showing results
+Storage.flushSave('manual');
  
  // Show results
  ECGApp.showQuizResults({
@@ -12388,7 +12983,7 @@ canvasIdBuilder: (lead) => ECGApp.getQuizLeadCanvasId(lead)
  
  // ========== INITIALIZATION ==========
  init() {
- console.log('ECG Trainer Pro v2.2 initializing...');
+ console.log('ECG Trainer Pro v2.5 initializing...');
  
  // Load saved data
  Storage.load();
@@ -12405,24 +13000,37 @@ canvasIdBuilder: (lead) => ECGApp.getQuizLeadCanvasId(lead)
  // Initialize navigation
  Navigation.init();
  
- // Update sidebar stats
- this.updateSidebarStats();
+// Update sidebar stats
+this.updateSidebarStats();
 
- // Initial diagnostics snapshot for troubleshooting.
- DiagnosticsEngine.runAll();
+// Initial diagnostics snapshot for troubleshooting.
+DiagnosticsEngine.runQuick();
+const deferredDiagnostics = () => {
+try {
+DiagnosticsEngine.runFull();
+Storage.scheduleSave(2000);
+} catch (diagErr) {
+console.warn('Volledige diagnostics run mislukt:', diagErr);
+}
+};
+if (typeof window.requestIdleCallback === 'function') {
+window.requestIdleCallback(deferredDiagnostics, { timeout: 4000 });
+} else {
+setTimeout(deferredDiagnostics, 1500);
+}
  
  // Setup keyboard shortcuts
  this.setupKeyboardShortcuts();
  
  // Setup window events
- window.addEventListener('beforeunload', () => {
- ECGRenderer.destroyAll();
- Storage.save();
- });
+window.addEventListener('beforeunload', () => {
+ECGRenderer.destroyAll();
+Storage.flushSave('beforeunload');
+});
  
- // Mark as active today
- AppState.user.lastActive = new Date().toISOString();
- Storage.save();
+// Mark as active today
+AppState.user.lastActive = new Date().toISOString();
+Storage.scheduleSave(1000);
  
  console.log('ECG Trainer Pro ready!');
  },
@@ -12496,17 +13104,17 @@ canvasIdBuilder: (lead) => ECGApp.getQuizLeadCanvasId(lead)
  `);
  },
 
- completeOnboarding() {
- AppState.ui.onboardingCompleted = true;
- Storage.save();
- if (AppState.currentSection === 'dashboard') {
- Sections.renderDashboard(Utils.$('#contentArea'));
- }
- },
+completeOnboarding() {
+AppState.ui.onboardingCompleted = true;
+Storage.scheduleSave(800);
+if (AppState.currentSection === 'dashboard') {
+Sections.renderDashboard(Utils.$('#contentArea'));
+}
+},
 
- runDiagnostics() {
- const { result, checks } = DiagnosticsEngine.runAll();
- Storage.save();
+runDiagnostics() {
+const { result, checks } = DiagnosticsEngine.runFull();
+Storage.scheduleSave(1200);
 
 const statusBadge = (ok, label) => ok
 ? `<li>OK ${label}</li>`
@@ -12834,6 +13442,166 @@ const safeLead = String(lead || 'II').replace(/[^a-z0-9]/gi, '').toLowerCase();
 return `monitorLead_${safeLead}`;
 },
 
+getLibraryCardKey(rhythmId) {
+return String(rhythmId || '').replace(/[^a-z0-9_]/gi, '_');
+},
+
+getLibraryLeadCanvasId(rhythmId, lead) {
+const key = this.getLibraryCardKey(rhythmId);
+const safeLead = String(lead || 'II').replace(/[^a-z0-9]/gi, '').toLowerCase();
+return `libraryLead_${key}_${safeLead}`;
+},
+
+getLibraryFocusCanvasId(rhythmId) {
+return `libraryFocus_${this.getLibraryCardKey(rhythmId)}`;
+},
+
+getLibraryFocusTitleId(rhythmId) {
+return `libraryFocusTitle_${this.getLibraryCardKey(rhythmId)}`;
+},
+
+getLibraryFocusChipId(rhythmId) {
+return `libraryFocusChip_${this.getLibraryCardKey(rhythmId)}`;
+},
+
+ensureLibraryState() {
+if (!AppState.library || typeof AppState.library !== 'object') {
+AppState.library = {
+selectedCategory: 'all',
+searchQuery: '',
+selectedRhythm: null,
+searchMode: 'combined',
+focusLeadByRhythm: {}
+};
+}
+if (!Object.prototype.hasOwnProperty.call(AppState.library, 'selectedCategory')) AppState.library.selectedCategory = 'all';
+if (!Object.prototype.hasOwnProperty.call(AppState.library, 'searchQuery')) AppState.library.searchQuery = '';
+if (!Object.prototype.hasOwnProperty.call(AppState.library, 'selectedRhythm')) AppState.library.selectedRhythm = null;
+if (!Object.prototype.hasOwnProperty.call(AppState.library, 'searchMode')) AppState.library.searchMode = 'combined';
+if (!AppState.library.focusLeadByRhythm || typeof AppState.library.focusLeadByRhythm !== 'object') {
+AppState.library.focusLeadByRhythm = {};
+}
+if (!['combined', 'global'].includes(AppState.library.searchMode)) {
+AppState.library.searchMode = 'combined';
+}
+return AppState.library;
+},
+
+getLibraryCardFocusLead(rhythmId, fallbackLead = 'II') {
+const state = this.ensureLibraryState();
+const allLeads = ECGRenderer.LEAD_ORDER || [];
+const preferred = state.focusLeadByRhythm?.[rhythmId];
+if (allLeads.includes(preferred)) return preferred;
+return allLeads.includes(fallbackLead) ? fallbackLead : 'II';
+},
+
+updateLibraryCardLeadSelection(rhythmId, activeLead) {
+const card = document.querySelector(`.library-rhythm-card[data-rhythm-id="${rhythmId}"]`);
+if (card) {
+card.querySelectorAll('.library-mini-lead').forEach(node => {
+node.classList.toggle('active', node.dataset.lead === activeLead);
+});
+}
+const focusTitle = document.getElementById(this.getLibraryFocusTitleId(rhythmId));
+if (focusTitle) focusTitle.textContent = `Ritmestrook (focus): Lead ${activeLead}`;
+const focusChip = document.getElementById(this.getLibraryFocusChipId(rhythmId));
+if (focusChip) focusChip.textContent = `Lead ${activeLead}`;
+},
+
+drawLibraryCardECG(rhythmId) {
+const rhythm = ECGDatabase.getRhythmById(rhythmId);
+if (!rhythm) return;
+const libraryView = this.getLibraryViewState();
+const allLeads = ECGRenderer.LEAD_ORDER || ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'];
+const displayLeads = this.getTwelveLeadDisplayOrder().filter(lead => allLeads.includes(lead));
+const fallbackLead = allLeads.includes(libraryView.defaultLead) ? libraryView.defaultLead : 'II';
+const focusLead = this.getLibraryCardFocusLead(rhythmId, fallbackLead);
+const options = this.getLibraryRenderOptions(rhythm, {
+showCalibrationPulse: false
+});
+ECGRenderer.drawTwelveLeadGrid(`libraryCard_${this.getLibraryCardKey(rhythmId)}`, rhythm.id, {
+...options,
+leads: displayLeads,
+verticalScale: 0.9,
+lineWidth: 1.35,
+shadowBlur: 0.7,
+canvasIdBuilder: (lead) => this.getLibraryLeadCanvasId(rhythmId, lead)
+});
+ECGRenderer.drawLeadStrip(this.getLibraryFocusCanvasId(rhythmId), rhythm.id, {
+...options,
+lead: focusLead,
+verticalScale: 1.05,
+lineWidth: 2,
+shadowBlur: 1.2
+});
+this.updateLibraryCardLeadSelection(rhythmId, focusLead);
+},
+
+setLibraryCardFocus(rhythmId, lead) {
+const rhythm = ECGDatabase.getRhythmById(rhythmId);
+if (!rhythm) return;
+const allowed = ECGRenderer.LEAD_ORDER || [];
+if (!allowed.includes(lead)) return;
+const state = this.ensureLibraryState();
+state.focusLeadByRhythm[rhythmId] = lead;
+const focusCanvas = document.getElementById(this.getLibraryFocusCanvasId(rhythmId));
+if (!focusCanvas) return;
+ECGRenderer.drawLeadStrip(this.getLibraryFocusCanvasId(rhythmId), rhythm.id, {
+...this.getLibraryRenderOptions(rhythm, {
+showCalibrationPulse: false
+}),
+lead,
+verticalScale: 1.05,
+lineWidth: 2,
+shadowBlur: 1.2
+});
+this.updateLibraryCardLeadSelection(rhythmId, lead);
+},
+
+matchesLibrarySearch(rhythm, query) {
+if (!rhythm || !query) return true;
+const needle = String(query || '').trim().toLowerCase();
+if (!needle) return true;
+const tokens = [];
+const pushText = (value) => {
+if (typeof value !== 'string') return;
+const clean = value.trim();
+if (clean) tokens.push(clean.toLowerCase());
+};
+const pushList = (list) => {
+if (!Array.isArray(list)) return;
+list.forEach(item => pushText(typeof item === 'string' ? item : ''));
+};
+pushText(rhythm.name);
+pushText(rhythm.shortName);
+pushText(rhythm.description);
+pushText(rhythm.signaturePattern);
+pushText(rhythm.whyCorrect);
+pushText(rhythm.firstSafeStep);
+pushText(rhythm.firstAction);
+pushList(rhythm.ecgFeatures);
+pushList(rhythm.looksLike);
+pushList(rhythm.keyDistinguishers);
+pushList(rhythm.redFlags);
+pushList(rhythm.pitfalls);
+if (Array.isArray(rhythm.lookalikes)) {
+rhythm.lookalikes.forEach(item => {
+pushText(item?.whyWrong || '');
+const lookalike = ECGDatabase.getRhythmById(item?.id);
+pushText(lookalike?.name || '');
+pushText(lookalike?.shortName || '');
+});
+}
+if (Array.isArray(rhythm.differentialIds)) {
+rhythm.differentialIds.forEach(id => {
+const diff = ECGDatabase.getRhythmById(id);
+pushText(diff?.name || '');
+pushText(diff?.shortName || '');
+});
+}
+return tokens.some(token => token.includes(needle));
+},
+
 getPaperTheme() {
 return {
 backgroundColor: '#fffafb',
@@ -12843,6 +13611,86 @@ waveColor: '#111827',
 sweepColor: 'rgba(190, 24, 93, 0.35)',
 overlayTextColor: '#9f1239'
 };
+},
+
+getLibraryViewState() {
+ const defaults = typeof StateFactory?.createLibraryView === 'function'
+ ? StateFactory.createLibraryView()
+ : {
+ defaultLead: 'II',
+ previewSeconds: 8,
+ highContrast: true,
+ compactCards: false,
+ lazyRenderBatch: 12,
+ layout: 'twelve_lead_focus',
+ showCalibration: true,
+ showLeadLabels: true
+ };
+ AppState.libraryView = {
+ ...defaults,
+ ...(AppState.libraryView || {})
+ };
+ const allLeads = ECGRenderer.LEAD_ORDER || ['II'];
+ if (!allLeads.includes(AppState.libraryView.defaultLead)) {
+ AppState.libraryView.defaultLead = 'II';
+ }
+ const seconds = Number(AppState.libraryView.previewSeconds);
+ AppState.libraryView.previewSeconds = Number.isFinite(seconds)
+ ? Math.max(4, Math.min(12, Math.round(seconds)))
+ : 8;
+ const batch = Number(AppState.libraryView.lazyRenderBatch);
+ AppState.libraryView.lazyRenderBatch = Number.isFinite(batch)
+ ? Math.max(6, Math.min(24, Math.round(batch)))
+ : 12;
+ AppState.libraryView.highContrast = AppState.libraryView.highContrast !== false;
+ AppState.libraryView.compactCards = AppState.libraryView.compactCards === true;
+ AppState.libraryView.layout = 'twelve_lead_focus';
+ AppState.libraryView.showCalibration = AppState.libraryView.showCalibration !== false;
+ AppState.libraryView.showLeadLabels = AppState.libraryView.showLeadLabels !== false;
+ return AppState.libraryView;
+},
+
+getLibraryPaperTheme() {
+ const base = this.getPaperTheme();
+ const view = this.getLibraryViewState();
+ if (view.highContrast === false) return base;
+ return {
+ ...base,
+ waveColor: '#0f172a',
+ gridColor: '#e88ea0',
+ gridColorMinor: '#f7dbe1',
+ sweepColor: 'rgba(190, 24, 93, 0.18)'
+ };
+},
+
+getLibraryRenderOptions(rhythm, overrides = {}) {
+ const view = this.getLibraryViewState();
+ const lead = (ECGRenderer.LEAD_ORDER || []).includes(view.defaultLead) ? view.defaultLead : 'II';
+ const rate = rhythm?.characteristics?.rate?.typical || 72;
+ return {
+ heartRate: rate,
+ speed: 25,
+ amplitude: 1,
+ verticalScale: 1.05,
+ lineWidth: 2.1,
+ shadowBlur: 2.2,
+ signalNoise: 0,
+ muscleNoise: 0,
+ baselineWander: 0,
+ powerlineNoise: 0,
+ powerlineHz: 0,
+ lead,
+ showCalibrationPulse: false,
+ theme: this.getLibraryPaperTheme(),
+ ...overrides
+ };
+},
+
+cleanupLibraryPreviewObserver() {
+ if (this.libraryPreviewObserver) {
+ this.libraryPreviewObserver.disconnect();
+ this.libraryPreviewObserver = null;
+ }
 },
 
 getTwelveLeadDisplayOrder() {
@@ -12882,21 +13730,21 @@ baselineWander: visualProfile.baselineWander || 0,
 theme: this.getPaperTheme()
 };
 
- ECGRenderer.drawLeadStrip('quizECGFocus', rhythm.id, {
- ...commonOptions,
- lead: AppState.quizView?.focusLead || 'II',
- verticalScale: (visualProfile.verticalScale || 1) * (AppState.quizView?.zoom || 1),
- lineWidth: visualProfile.lineWidth || 2,
-shadowBlur: visualProfile.shadowBlur || 3,
-showCalibrationPulse: true
- });
+ECGRenderer.drawLeadStrip('quizECGFocus', rhythm.id, {
+...commonOptions,
+lead: AppState.quizView?.focusLead || 'II',
+verticalScale: (visualProfile.verticalScale || 1) * (AppState.quizView?.zoom || 1),
+lineWidth: Math.max(2.1, visualProfile.lineWidth || 2),
+shadowBlur: Math.max(2.2, visualProfile.shadowBlur || 3),
+showCalibrationPulse: false
+});
 ECGRenderer.drawTwelveLeadGrid('quizLead', rhythm.id, {
 ...commonOptions,
 verticalScale: Math.max(0.75, (visualProfile.verticalScale || 1) * 0.82),
-lineWidth: Math.max(1.1, (visualProfile.lineWidth || 2) - 0.8),
+lineWidth: Math.max(1.35, (visualProfile.lineWidth || 2) - 0.65),
 shadowBlur: Math.max(1.5, (visualProfile.shadowBlur || 3) - 1.2),
 leads: displayLeads,
-showCalibrationPulseLeads: ['V4', 'V5', 'V6'],
+showCalibrationPulse: false,
 canvasIdBuilder: (lead) => this.getQuizLeadCanvasId(lead)
 });
  this.updateQuizLeadSelectionStyles();
@@ -12905,18 +13753,18 @@ canvasIdBuilder: (lead) => this.getQuizLeadCanvasId(lead)
  setQuizFocusLead(lead = 'II') {
  const allowed = ECGRenderer.LEAD_ORDER || [];
  if (!allowed.includes(lead)) return;
- AppState.quizView.focusLead = lead;
- this.redrawQuizLeadViews();
- Storage.save();
- },
+AppState.quizView.focusLead = lead;
+this.redrawQuizLeadViews();
+Storage.scheduleSave(900);
+},
 
  toggleQuizCalibrationDetails() {
  AppState.quizView.showDetailedCalibration = !(AppState.quizView.showDetailedCalibration === true);
- if (AppState.currentSection === 'quiz' && AppState.quiz.active) {
- Sections.renderActiveQuiz(Utils.$('#contentArea'));
- }
- Storage.save();
- },
+if (AppState.currentSection === 'quiz' && AppState.quiz.active) {
+Sections.renderActiveQuiz(Utils.$('#contentArea'));
+}
+Storage.scheduleSave(900);
+},
 
  selectAnswer(rhythmId) {
  const quiz = AppState.quiz;
@@ -13071,11 +13919,11 @@ nextBtn.dataset.finalLabel = 'Volgende >';
  const answer = quiz.answers[quiz.pendingAnswerIndex];
  if (!answer || answer.confidence) return;
 
- answer.confidence = level;
- quiz.pendingConfidence = level;
- LearningCoachEngine.registerAnswerReview(answer);
- LearningCoachEngine.syncAnalytics();
- Storage.save();
+answer.confidence = level;
+quiz.pendingConfidence = level;
+LearningCoachEngine.registerAnswerReview(answer);
+LearningCoachEngine.syncAnalytics();
+Storage.scheduleSave(900);
 
  const nextBtn = document.getElementById('nextBtn');
  if (nextBtn) {
@@ -13430,23 +14278,23 @@ Number(AppState.monitor.zoom) || 1
  return AppState.monitor.ui;
  },
 
- toggleMonitorAdvanced() {
+toggleMonitorAdvanced() {
  const ui = this.ensureMonitorUiState();
  ui.advancedOpen = !ui.advancedOpen;
  if (AppState.currentSection === 'monitor') {
  Sections.renderMonitor(Utils.$('#contentArea'));
  }
- Storage.save();
- },
+ Storage.scheduleSave(600);
+},
 
- toggleMonitorRhythmPanel() {
+toggleMonitorRhythmPanel() {
  const ui = this.ensureMonitorUiState();
  ui.rhythmPanelOpen = !ui.rhythmPanelOpen;
  if (AppState.currentSection === 'monitor') {
  Sections.renderMonitor(Utils.$('#contentArea'));
  }
- Storage.save();
- },
+ Storage.scheduleSave(600);
+},
 
  setMonitorRhythmSearch(term = '') {
  const ui = this.ensureMonitorUiState();
@@ -13456,7 +14304,7 @@ Number(AppState.monitor.zoom) || 1
  }
  },
 
- setMonitorRhythmCategory(category = 'all') {
+setMonitorRhythmCategory(category = 'all') {
  const valid = ['all', ...Object.keys(ECGDatabase.categories)];
  if (!valid.includes(category)) return;
  const ui = this.ensureMonitorUiState();
@@ -13464,17 +14312,17 @@ Number(AppState.monitor.zoom) || 1
  if (AppState.currentSection === 'monitor') {
  Sections.renderMonitor(Utils.$('#contentArea'));
  }
- Storage.save();
- },
+ Storage.scheduleSave(700);
+},
 
- toggleMonitorLeadPad() {
+toggleMonitorLeadPad() {
  const ui = this.ensureMonitorUiState();
  ui.showLeadPad = !ui.showLeadPad;
  if (AppState.currentSection === 'monitor') {
  Sections.renderMonitor(Utils.$('#contentArea'));
  }
- Storage.save();
- },
+ Storage.scheduleSave(700);
+},
 
 refreshMonitorStaticStrip() {
 const renderOptions = this.getMonitorRenderOptions();
@@ -13493,8 +14341,7 @@ muscleNoise: renderOptions.muscleNoise,
 baselineWander: renderOptions.baselineWander,
 powerlineNoise: renderOptions.powerlineNoise,
 powerlineHz: renderOptions.powerlineHz,
-showIntervalsOverlay: AppState.monitor.showIntervalsOverlay,
-showCalibrationPulse: true,
+showCalibrationPulse: false,
 theme
 });
 this.redrawMonitorLeadOverview();
@@ -13517,7 +14364,7 @@ powerlineNoise: renderOptions.powerlineNoise,
 powerlineHz: renderOptions.powerlineHz,
 leads: allLeads,
 canvasIdBuilder: (lead) => this.getMonitorLeadCanvasId(lead),
-showCalibrationPulseLeads: ['V4', 'V5', 'V6'],
+showCalibrationPulse: false,
 theme: this.getPaperTheme()
 });
 },
@@ -13549,8 +14396,7 @@ muscleNoise: renderOptions.muscleNoise,
 baselineWander: renderOptions.baselineWander,
 powerlineNoise: renderOptions.powerlineNoise,
 powerlineHz: renderOptions.powerlineHz,
-showIntervalsOverlay: AppState.monitor.showIntervalsOverlay,
-showCalibrationPulse: true,
+showCalibrationPulse: false,
 theme
 });
 }
@@ -13561,58 +14407,47 @@ config.muscleNoise = renderOptions.muscleNoise;
 config.baselineWander = renderOptions.baselineWander;
 config.powerlineNoise = renderOptions.powerlineNoise;
 config.powerlineHz = renderOptions.powerlineHz;
-config.showIntervalsOverlay = AppState.monitor.showIntervalsOverlay;
-config.showCalibrationPulse = true;
+config.showCalibrationPulse = false;
 config.theme = theme;
- config.verticalScale = visualProfile.verticalScale;
- config.lineWidth = visualProfile.lineWidth;
- config.shadowBlur = visualProfile.shadowBlur;
- ECGRenderer.start('monitorCanvas');
- monitor.isRunning = true;
- }
+config.verticalScale = visualProfile.verticalScale;
+config.lineWidth = visualProfile.lineWidth;
+config.shadowBlur = visualProfile.shadowBlur;
+ECGRenderer.start('monitorCanvas', { reset: false });
+monitor.isRunning = true;
+}
  
  // Update button
- const btn = document.getElementById('monitorToggle');
- if (btn) {
- btn.className = `btn btn-sm ${monitor.isRunning ? 'btn-danger' : 'btn-success'}`;
- btn.innerHTML = monitor.isRunning ? 'Pauze' : 'Start';
- }
- Storage.save();
- },
+const btn = document.getElementById('monitorToggle');
+if (btn) {
+btn.className = `btn btn-sm ${monitor.isRunning ? 'btn-danger' : 'btn-success'}`;
+btn.innerHTML = monitor.isRunning ? 'Pauze' : 'Start';
+}
+const freezeBtn = document.getElementById('monitorFreezeBtn');
+if (freezeBtn) {
+freezeBtn.textContent = AppState.monitor.freezeFrame ? 'Hervat' : 'Freeze';
+}
+Storage.scheduleSave(650);
+},
 
 toggleMonitorFreeze() {
 AppState.monitor.freezeFrame = !AppState.monitor.freezeFrame;
 const config = ECGRenderer.activeCanvases.get('monitorCanvas');
 if (!config) {
 if (AppState.currentSection === 'monitor') Sections.renderMonitor(Utils.$('#contentArea'));
-Storage.save();
+Storage.scheduleSave(650);
 return;
 }
 
  if (AppState.monitor.freezeFrame) {
  ECGRenderer.stop('monitorCanvas');
  } else if (AppState.monitor.isRunning) {
- ECGRenderer.start('monitorCanvas');
+ ECGRenderer.start('monitorCanvas', { reset: false });
  }
-if (AppState.currentSection === 'monitor') {
-Sections.renderMonitor(Utils.$('#contentArea'));
+const freezeBtn = document.getElementById('monitorFreezeBtn');
+if (freezeBtn) {
+freezeBtn.textContent = AppState.monitor.freezeFrame ? 'Hervat' : 'Freeze';
 }
-Storage.save();
-},
-
- toggleMonitorOverlay() {
- AppState.monitor.showIntervalsOverlay = !AppState.monitor.showIntervalsOverlay;
- const config = ECGRenderer.activeCanvases.get('monitorCanvas');
- if (config) {
- config.showIntervalsOverlay = AppState.monitor.showIntervalsOverlay;
- }
- if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
- this.refreshMonitorStaticStrip();
- }
-if (AppState.currentSection === 'monitor') {
-Sections.renderMonitor(Utils.$('#contentArea'));
-}
-Storage.save();
+Storage.scheduleSave(700);
 },
 
  setMonitorLead(lead = 'II') {
@@ -13625,13 +14460,13 @@ Storage.save();
  config.lead = lead;
  ECGRenderer.resetSweep('monitorCanvas');
  }
- if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
- this.refreshMonitorStaticStrip();
- }
+if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
+this.refreshMonitorStaticStrip();
+}
 if (AppState.currentSection === 'monitor') {
 Sections.renderMonitor(Utils.$('#contentArea'));
 }
-Storage.save();
+Storage.scheduleSave(700);
 },
 
  setMonitorArtifact(level = 'none') {
@@ -13649,14 +14484,14 @@ config.powerlineNoise = renderOptions.powerlineNoise;
 config.powerlineHz = renderOptions.powerlineHz;
 ECGRenderer.resetSweep('monitorCanvas');
 }
- if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
- this.refreshMonitorStaticStrip();
- }
- if (AppState.currentSection === 'monitor') {
- Sections.renderMonitor(Utils.$('#contentArea'));
- }
- Storage.save();
- },
+if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
+this.refreshMonitorStaticStrip();
+}
+if (AppState.currentSection === 'monitor') {
+Sections.renderMonitor(Utils.$('#contentArea'));
+}
+Storage.scheduleSave(700);
+},
 
  setMonitorSpeed(speed = 25) {
  const allowed = [12.5, 25, 50];
@@ -13669,14 +14504,14 @@ ECGRenderer.resetSweep('monitorCanvas');
  config.speed = parsed;
  ECGRenderer.resetSweep('monitorCanvas');
  }
- if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
- this.refreshMonitorStaticStrip();
- }
- if (AppState.currentSection === 'monitor') {
- Sections.renderMonitor(Utils.$('#contentArea'));
- }
- Storage.save();
- },
+if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
+this.refreshMonitorStaticStrip();
+}
+if (AppState.currentSection === 'monitor') {
+Sections.renderMonitor(Utils.$('#contentArea'));
+}
+Storage.scheduleSave(700);
+},
 
  setMonitorGain(gain = 1) {
  const allowed = [0.5, 1, 2];
@@ -13689,14 +14524,14 @@ ECGRenderer.resetSweep('monitorCanvas');
  config.amplitude = parsed;
  ECGRenderer.resetSweep('monitorCanvas');
  }
- if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
- this.refreshMonitorStaticStrip();
- }
- if (AppState.currentSection === 'monitor') {
- Sections.renderMonitor(Utils.$('#contentArea'));
- }
- Storage.save();
- },
+if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
+this.refreshMonitorStaticStrip();
+}
+if (AppState.currentSection === 'monitor') {
+Sections.renderMonitor(Utils.$('#contentArea'));
+}
+Storage.scheduleSave(700);
+},
 
  setMonitorZoom(zoom = 1) {
  const allowed = [1, 1.5, 2];
@@ -13712,14 +14547,14 @@ ECGRenderer.resetSweep('monitorCanvas');
  config.shadowBlur = visualProfile.shadowBlur;
  ECGRenderer.resetSweep('monitorCanvas');
  }
- if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
- this.refreshMonitorStaticStrip();
- }
- if (AppState.currentSection === 'monitor') {
- Sections.renderMonitor(Utils.$('#contentArea'));
- }
- Storage.save();
- },
+if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
+this.refreshMonitorStaticStrip();
+}
+if (AppState.currentSection === 'monitor') {
+Sections.renderMonitor(Utils.$('#contentArea'));
+}
+Storage.scheduleSave(700);
+},
 
  setMonitorRhythm(rhythmId) {
  const rhythm = ECGDatabase.getRhythmById(rhythmId);
@@ -13757,8 +14592,7 @@ muscleNoise: renderOptions.muscleNoise,
 baselineWander: renderOptions.baselineWander,
 powerlineNoise: renderOptions.powerlineNoise,
 powerlineHz: renderOptions.powerlineHz,
-showIntervalsOverlay: AppState.monitor.showIntervalsOverlay,
-showCalibrationPulse: true,
+showCalibrationPulse: false,
 theme
 });
 }
@@ -13771,13 +14605,12 @@ config.muscleNoise = renderOptions.muscleNoise;
 config.baselineWander = renderOptions.baselineWander;
 config.powerlineNoise = renderOptions.powerlineNoise;
 config.powerlineHz = renderOptions.powerlineHz;
-config.showIntervalsOverlay = AppState.monitor.showIntervalsOverlay;
-config.showCalibrationPulse = true;
+config.showCalibrationPulse = false;
 config.theme = theme;
- config.verticalScale = visualProfile.verticalScale;
- config.lineWidth = visualProfile.lineWidth;
- config.shadowBlur = visualProfile.shadowBlur;
- ECGRenderer.setRhythm('monitorCanvas', rhythmId, AppState.monitor.heartRate);
+config.verticalScale = visualProfile.verticalScale;
+config.lineWidth = visualProfile.lineWidth;
+config.shadowBlur = visualProfile.shadowBlur;
+ECGRenderer.setRhythm('monitorCanvas', rhythmId, AppState.monitor.heartRate);
  }
  
 // Update display HR
@@ -13799,7 +14632,7 @@ if (!AppState.monitor.isRunning || AppState.monitor.freezeFrame) {
 this.refreshMonitorStaticStrip();
 }
 this.redrawMonitorLeadOverview();
-Storage.save();
+Storage.scheduleSave(800);
 },
 
  updateMonitorInfoPanel(rhythm) {
@@ -13834,7 +14667,7 @@ Storage.save();
  }
  },
 
-setMonitorHR(value) {
+setMonitorHR(value, commit = false) {
 const parsed = parseInt(value, 10);
 if (!Number.isFinite(parsed)) return;
 AppState.monitor.heartRate = Math.min(200, Math.max(30, parsed));
@@ -13856,19 +14689,34 @@ this.refreshMonitorStaticStrip();
 this.refreshMonitorStaticStrip();
 }
 this.redrawMonitorLeadOverview();
-Storage.save();
+if (commit) {
+Storage.flushSave('manual');
+} else {
+Storage.scheduleSave(1400);
+}
 },
 
  // ========== LIBRARY FUNCTIONS ==========
  searchLibrary(query) {
- AppState.library.searchQuery = query;
+ const library = this.ensureLibraryState();
+ library.searchQuery = String(query || '').slice(0, 120);
+ if (!this.librarySearchDebouncedRender) {
+ this.librarySearchDebouncedRender = Utils.debounce(() => {
+ if (AppState.currentSection === 'library') {
  Sections.renderLibrary(Utils.$('#contentArea'));
+ }
+ }, 150);
+ }
+ this.librarySearchDebouncedRender();
  },
 
  filterLibrary(category) {
- AppState.library.selectedCategory = category;
- AppState.library.searchQuery = ''; // Clear search
+ const library = this.ensureLibraryState();
+ const valid = ['all', ...Object.keys(ECGDatabase.categories)];
+ library.selectedCategory = valid.includes(category) ? category : 'all';
+ if (AppState.currentSection === 'library') {
  Sections.renderLibrary(Utils.$('#contentArea'));
+ }
  },
 
  showRhythmDetail(rhythmId) {
@@ -13878,6 +14726,15 @@ Storage.save();
  const urgencyInfo = Utils.getUrgencyLabel(rhythm.urgency);
  const category = ECGDatabase.categories[rhythm.category];
  const source = MedicalContentAudit.getSource(rhythm.sourceId);
+ const looksLikeText = (Array.isArray(rhythm.looksLike) && rhythm.looksLike.length)
+ ? rhythm.looksLike.slice(0, 3).join(', ')
+ : (Array.isArray(rhythm.differentialIds) && rhythm.differentialIds.length
+ ? rhythm.differentialIds.map(id => ECGDatabase.getRhythmById(id)?.name).filter(Boolean).slice(0, 3).join(', ')
+ : 'Geen directe lookalike opgegeven.');
+ const distinguishers = (Array.isArray(rhythm.keyDistinguishers) && rhythm.keyDistinguishers.length)
+ ? rhythm.keyDistinguishers.slice(0, 4)
+ : (Array.isArray(rhythm.ecgFeatures) ? rhythm.ecgFeatures.slice(0, 3) : []);
+ const firstSafeStep = rhythm.firstSafeStep || rhythm.firstAction || 'Beoordeel eerst hemodynamiek en volg lokaal protocol.';
  
  const content = `
  <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
@@ -13899,7 +14756,7 @@ Storage.save();
  <!-- ECG Strip -->
  <div class="ecg-monitor mb-3">
  <div class="ecg-monitor-header">
- <div class="ecg-monitor-title">ECG Voorbeeld</div>
+ <div class="ecg-monitor-title">ECG Voorbeeld (Lead ${ECGApp.getLibraryViewState().defaultLead || 'II'})</div>
  <div class="vital-display">
  <div class="vital-label">HR</div>
  <div class="vital-value green">${rhythm.characteristics?.rate?.typical || '--'}</div>
@@ -13956,6 +14813,17 @@ Storage.save();
  ${rhythm.ecgFeatures.map(f => `<li>${f}</li>`).join('')}
  </ul>
  </div>
+ </div>
+
+ <h4 style="margin-bottom: 0.75rem;">Differentiatie</h4>
+ <div class="algorithm-box info mb-3">
+ <p><strong>Kernpatroon:</strong> ${rhythm.signaturePattern || rhythm.whyCorrect}</p>
+ <p style="margin-top:0.35rem;"><strong>Lijkt op:</strong> ${looksLikeText}</p>
+ <p style="margin-top:0.45rem;"><strong>Zo onderscheid je het:</strong></p>
+ <ul class="styled-list" style="margin-top:0.35rem;">
+ ${distinguishers.map(item => `<li>${item}</li>`).join('')}
+ </ul>
+ <p style="margin-top:0.45rem;"><strong>Eerste veilige stap:</strong> ${firstSafeStep}</p>
  </div>
  
  <!-- Clinical Significance -->
@@ -14017,8 +14885,7 @@ Storage.save();
  
  // Draw ECG after modal is shown
  setTimeout(() => {
- const rate = rhythm.characteristics?.rate?.typical || 72;
- ECGRenderer.drawStaticStrip('detailECG', rhythmId, { heartRate: rate });
+ ECGRenderer.drawStaticStrip('detailECG', rhythmId, ECGApp.getLibraryRenderOptions(rhythm));
  }, 100);
  },
 
@@ -14256,9 +15123,9 @@ Storage.save();
  AppState.user.totalCorrect++;
  AppState.user.xp += 25;
  }
- AppState.user.totalAnswered++;
- Storage.save();
- this.updateSidebarStats();
+AppState.user.totalAnswered++;
+Storage.scheduleSave(900);
+this.updateSidebarStats();
  },
 
  nextCaseQuestion() {
@@ -14329,11 +15196,11 @@ ${accuracy >= 80 ? '&#x1F3C6;' : accuracy >= 60 ? '&#x1F44D;' : '&#x1F4DA;'}
  if (!AppState.learningPath.completedCases.includes(caseData.id)) {
  AppState.learningPath.completedCases.push(caseData.id);
  }
- LearningPathEngine.completeDailyCase(caseData.id);
- LearningPathEngine.syncState();
- Storage.save();
- }
- this.currentCase = null;
+LearningPathEngine.completeDailyCase(caseData.id);
+LearningPathEngine.syncState();
+Storage.flushSave('manual');
+}
+this.currentCase = null;
  },
 
  // ========== TAB SWITCHING ==========
@@ -14459,12 +15326,12 @@ ${accuracy >= 80 ? '&#x1F3C6;' : accuracy >= 60 ? '&#x1F44D;' : '&#x1F4DA;'}
  },
 
  // ========== UTILITY ==========
- startChecklistTraining() {
- AppState.learningPath.checklistTraining.activeSince = new Date().toISOString();
- Storage.save();
- if (AppState.currentSection === 'systematic') {
- Sections.renderSystematic(Utils.$('#contentArea'));
- }
+startChecklistTraining() {
+AppState.learningPath.checklistTraining.activeSince = new Date().toISOString();
+Storage.scheduleSave(700);
+if (AppState.currentSection === 'systematic') {
+Sections.renderSystematic(Utils.$('#contentArea'));
+}
  },
 
  completeChecklistTraining() {
@@ -14484,10 +15351,10 @@ ${accuracy >= 80 ? '&#x1F3C6;' : accuracy >= 60 ? '&#x1F44D;' : '&#x1F4DA;'}
  AppState.learningPath.checklistTraining.sessions += 1;
  AppState.learningPath.checklistTraining.lastCompleted = new Date().toISOString();
  AppState.learningPath.checklistTraining.activeSince = null;
- AppState.user.xp += 15;
- LearningPathEngine.syncState();
- Storage.save();
- this.updateSidebarStats();
+AppState.user.xp += 15;
+LearningPathEngine.syncState();
+Storage.flushSave('manual');
+this.updateSidebarStats();
  if (AppState.currentSection === 'systematic') {
  Sections.renderSystematic(Utils.$('#contentArea'));
  }
@@ -14605,10 +15472,10 @@ ${accuracy >= 80 ? '&#x1F3C6;' : accuracy >= 60 ? '&#x1F44D;' : '&#x1F4DA;'}
  const newName = prompt('Nieuwe profielnaam:', currentName);
  if (!newName || newName.trim() === currentName) return;
 
- try {
- Storage.renameActiveProfile(newName);
- Storage.save();
- this.updateSidebarStats();
+try {
+Storage.renameActiveProfile(newName);
+Storage.scheduleSave(600);
+this.updateSidebarStats();
  if (AppState.currentSection === 'settings') {
  Sections.renderSettings(Utils.$('#contentArea'));
  }
@@ -14880,10 +15747,10 @@ return user.quizHistory.some(q => q.mode === 'survival' && q.correct >= 15);
  }
  });
 
- if (newAchievements.length > 0) {
- Storage.save();
- this.showAchievementNotification(newAchievements);
- }
+if (newAchievements.length > 0) {
+Storage.scheduleSave(800);
+this.showAchievementNotification(newAchievements);
+}
 
  return newAchievements;
  },
@@ -15937,23 +16804,21 @@ const configured = Array.isArray(AppState.monitorValidation.testRhythms) ? AppSt
 const testRhythms = configured.length ? configured : [...this.defaultTestRhythms];
 const artifact = this.computeArtifactContrast(speed, gain, zoom);
 const quizCheck = this.runQuizConsistencyCheck(10);
-const perRhythm = testRhythms.map(id => ({
-id,
-lead: this.evaluateLeadDistinctiveness(id, 0.92),
-overlay: this.evaluateOverlayRhythm(id)
-}));
-const leadDistinctivenessOk = perRhythm.every(item => item.lead.ok);
-const overlayBeatLockOk = perRhythm.every(item => item.overlay.ok);
-const result = {
-testedAt: new Date().toISOString(),
-testRhythms,
-artifactContrastOk: artifact.ok,
-leadDistinctivenessOk,
-overlayBeatLockOk,
-quizLeadConsistencyOk: quizCheck.ok,
-artifact,
-quizCheck,
-perRhythm
+ const perRhythm = testRhythms.map(id => ({
+ id,
+ lead: this.evaluateLeadDistinctiveness(id, 0.92)
+ }));
+ const leadDistinctivenessOk = perRhythm.every(item => item.lead.ok);
+ const result = {
+ testedAt: new Date().toISOString(),
+ testRhythms,
+ artifactContrastOk: artifact.ok,
+ leadDistinctivenessOk,
+ overlayBeatLockOk: 'n/a',
+ quizLeadConsistencyOk: quizCheck.ok,
+ artifact,
+ quizCheck,
+ perRhythm
 };
 AppState.monitorValidation.enabled = true;
 AppState.monitorValidation.lastRun = result.testedAt;
@@ -15967,7 +16832,7 @@ const DiagnosticsEngine = {
  const requiredMethods = [
  'startQuickQuiz', 'startCriticalQuiz', 'startQuiz', 'startModulePractice',
  'startCoachSession', 'showPrerequisiteHelp', 'toggleMonitor', 'toggleMonitorFreeze',
- 'toggleMonitorOverlay', 'toggleMonitorAdvanced', 'toggleMonitorRhythmPanel',
+ 'toggleMonitorAdvanced', 'toggleMonitorRhythmPanel',
  'setMonitorRhythm', 'setMonitorLead', 'setMonitorArtifact', 'setMonitorRhythmSearch',
  'setMonitorRhythmCategory', 'toggleMonitorLeadPad',
  'setQuizFocusLead', 'toggleQuizCalibrationDetails',
@@ -16131,9 +16996,6 @@ const issues = [];
  if (!allowedArtifact.includes(AppState.monitor.artifactLevel || 'none')) {
  issues.push(`Onverwacht artifactniveau: ${AppState.monitor.artifactLevel}`);
  }
- if (typeof AppState.monitor.showIntervalsOverlay !== 'boolean') {
- issues.push('showIntervalsOverlay moet boolean zijn.');
- }
  if (typeof AppState.monitor.freezeFrame !== 'boolean') {
  issues.push('freezeFrame moet boolean zijn.');
  }
@@ -16178,10 +17040,6 @@ issues.push(`Lead-differentiatie onvoldoende bij ${firstFail.id}: ${firstFail.le
 issues.push('Lead-differentiatie onvoldoende (onbekende oorzaak).');
 }
 }
-if (!suite.overlayBeatLockOk) {
-const firstFail = (suite.perRhythm || []).find(r => !r.overlay.ok);
-issues.push(`Overlay-beatlock onvoldoende bij ${firstFail?.id || 'onbekend ritme'}.`);
-}
 if (!suite.quizLeadConsistencyOk) {
 issues.push(`Quiz lead-consistentiecheck faalt (${suite.quizCheck?.invalid ?? '?'} ongeldige payloads op ${suite.quizCheck?.sampleCount ?? 10}).`);
 }
@@ -16192,7 +17050,39 @@ issues,
 };
 },
 
-runAll() {
+runQuick() {
+const binding = this.runBindingsCheck();
+const navigation = this.runNavigationCheck();
+const monitor = this.runMonitorSanityCheck();
+const scoreParts = [binding.ok, navigation.ok, monitor.ok];
+const score = Math.round((scoreParts.filter(Boolean).length / scoreParts.length) * 100);
+const scoreBand = score >= 90 ? 'Groen' : score >= 70 ? 'Oranje' : 'Rood';
+const previous = AppState.diagnostics || {};
+const result = {
+lastRunAt: new Date().toISOString(),
+bindingIssues: [...binding.missingMethods, ...binding.invalidOnclick],
+sectionIssues: [
+...navigation.missingSections.map(i => `Ontbrekende nav-section: ${i}`),
+...navigation.unlinkedSections.map(i => `Zonder sidebar-link: ${i}`)
+],
+sourceCoverage: previous.sourceCoverage || null,
+variationMetrics: previous.variationMetrics || null,
+monitorHealth: monitor,
+monitorVisual: previous.monitorVisual || null,
+score,
+scoreBand
+};
+AppState.diagnostics = result;
+if (AppState.runtime?.diagnostics) {
+AppState.runtime.diagnostics.quickLastRunAt = result.lastRunAt;
+}
+return {
+result,
+checks: { binding, navigation, monitor }
+};
+},
+
+runFull() {
 const binding = this.runBindingsCheck();
 const navigation = this.runNavigationCheck();
 const coverage = this.runMedicalCoverageCheck();
@@ -16219,10 +17109,18 @@ scoreBand
 };
 
  AppState.diagnostics = result;
+ if (AppState.runtime?.diagnostics) {
+ AppState.runtime.diagnostics.fullLastRunAt = result.lastRunAt;
+ AppState.runtime.diagnostics.fullResultCache = result;
+ }
 return {
 result,
 checks: { binding, navigation, coverage, variation, monitor, visual }
 };
+},
+
+runAll() {
+return this.runFull();
 }
 };
 
@@ -16905,14 +17803,13 @@ Uitvoeren
 </button>
 </div>
 </div>
-<div class="info-box ${diagnostics.monitorVisual?.artifactContrastOk && diagnostics.monitorVisual?.leadDistinctivenessOk && diagnostics.monitorVisual?.overlayBeatLockOk ? 'success' : 'warning'}" style="margin-top:0.75rem;">
+<div class="info-box ${diagnostics.monitorVisual?.artifactContrastOk && diagnostics.monitorVisual?.leadDistinctivenessOk ? 'success' : 'warning'}" style="margin-top:0.75rem;">
 <div class="info-box-icon">*</div>
 <div class="info-box-content">
 <h4>Visual QA Scorekaart</h4>
 <ul class="styled-list" style="margin-top:0.35rem;">
 <li>Artifact contrast: ${diagnostics.monitorVisual?.artifactContrastOk ? 'OK' : 'Niet OK'} (${artifactDeltaLow}% / ${artifactDeltaMed}%)</li>
 <li>Lead distinctiveness: ${diagnostics.monitorVisual?.leadDistinctivenessOk ? 'OK' : 'Niet OK'}</li>
-<li>Overlay beat-lock: ${diagnostics.monitorVisual?.overlayBeatLockOk ? 'OK' : 'Niet OK'}</li>
 <li>Quiz lead-consistentie: ${diagnostics.monitorVisual?.quizLeadConsistencyOk ? 'OK' : 'Niet OK'}</li>
 </ul>
 </div>
@@ -16923,7 +17820,7 @@ Uitvoeren
  <div class="info-box info">
  <div class="info-box-icon">*</div>
  <div class="info-box-content">
-<h4>ECG Trainer Pro v2.4.2</h4>
+<h4>ECG Trainer Pro v2.5</h4>
  <p>Een uitgebreide ECG leerapp voor IC/SEH verpleegkundigen en medisch professionals.</p>
  <p style="margin-top: 0.5rem;">
  <strong>Bevat:</strong> ${ECGDatabase.getAllRhythms().length} ECG ritmes, 
@@ -16953,18 +17850,18 @@ Uitvoeren
  ECGApp.updateSetting = function(key, value) {
  if (!AppState.settings) AppState.settings = {};
 
- if (key === 'examinerMode') {
- AppState.settings.examinerMode = value === true || value === 'true';
- Storage.save();
- return;
- }
- if (key === 'contextualHelp') {
- if (!AppState.ui) AppState.ui = StateFactory.createUi();
- AppState.ui.contextualHelp = value === true || value === 'true';
- Storage.save();
- if (AppState.currentSection && typeof Navigation?.renderSection === 'function') {
- Navigation.renderSection(AppState.currentSection);
- }
+if (key === 'examinerMode') {
+AppState.settings.examinerMode = value === true || value === 'true';
+Storage.scheduleSave(600);
+return;
+}
+if (key === 'contextualHelp') {
+if (!AppState.ui) AppState.ui = StateFactory.createUi();
+AppState.ui.contextualHelp = value === true || value === 'true';
+Storage.scheduleSave(600);
+if (AppState.currentSection && typeof Navigation?.renderSection === 'function') {
+Navigation.renderSection(AppState.currentSection);
+}
  return;
  }
  
@@ -16989,25 +17886,26 @@ Uitvoeren
  Sections.renderMonitor(Utils.$('#contentArea'));
  }
  
- Storage.save();
- };
+Storage.scheduleSave(600);
+};
 
- ECGApp.resetOnboarding = function() {
- if (!AppState.ui) AppState.ui = StateFactory.createUi();
- AppState.ui.onboardingCompleted = false;
- Storage.save();
- if (AppState.currentSection === 'dashboard') {
- Sections.renderDashboard(Utils.$('#contentArea'));
- }
+ECGApp.resetOnboarding = function() {
+if (!AppState.ui) AppState.ui = StateFactory.createUi();
+AppState.ui.onboardingCompleted = false;
+Storage.scheduleSave(600);
+if (AppState.currentSection === 'dashboard') {
+Sections.renderDashboard(Utils.$('#contentArea'));
+}
  };
 
 ECGApp.exportData = function() {
 const data = {
-version: '2.4.2',
+version: '2.5.0',
 exportDate: new Date().toISOString(),
 profile: AppState.profile,
 ui: AppState.ui,
 quizQuality: AppState.quizQuality,
+libraryView: AppState.libraryView,
 quizView: AppState.quizView,
 monitor: AppState.monitor,
 user: AppState.user,
@@ -17071,6 +17969,9 @@ diagnostics: AppState.diagnostics
  }
  if (data.quizQuality) {
  AppState.quizQuality = { ...AppState.quizQuality, ...data.quizQuality };
+ }
+ if (data.libraryView) {
+ AppState.libraryView = { ...StateFactory.createLibraryView(), ...AppState.libraryView, ...data.libraryView };
  }
  if (data.quizView) {
  AppState.quizView = { ...AppState.quizView, ...data.quizView };
@@ -17143,10 +18044,10 @@ AppState.diagnostics = {
  if (!AppState.learningAnalytics.lastReviewDate) {
  AppState.learningAnalytics.lastReviewDate = '2026-02-16';
  }
- AppState.learningAnalytics.medicalCoverage = MedicalContentAudit.validateCoverage();
- DiagnosticsEngine.runAll();
- 
- Storage.save();
+AppState.learningAnalytics.medicalCoverage = MedicalContentAudit.validateCoverage();
+DiagnosticsEngine.runFull();
+
+Storage.flushSave('manual');
  
  this.showModal('Import Voltooid', `
  <div class="info-box success">
@@ -17188,10 +18089,10 @@ AppState.diagnostics = {
  }
  }, 30000); // Every 30 seconds
 
- // Auto-save periodically
- setInterval(() => {
- Storage.save();
- }, 60000); // Every minute
+// Auto-save periodically
+setInterval(() => {
+Storage.flushSave('interval');
+}, 60000); // Every minute
 
  // ==================== FINAL INITIALIZATION ====================
  
@@ -17209,6 +18110,7 @@ AppState.diagnostics = {
 </script>
 </body>
 </html>
+
 
 
 
